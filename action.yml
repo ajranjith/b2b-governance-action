@@ -1,0 +1,39 @@
+name: "GRES B2B Governance"
+description: "Runs GRES B2B governance verify/watch/shadow by downloading official release binaries."
+author: "GRES Digital"
+
+branding:
+  icon: "shield"
+  color: "blue"
+
+inputs:
+  version:
+    description: "Release tag to install from gres-digital/b2b-governance-mcp (e.g. v4.0.0). Use 'latest' for newest release."
+    required: false
+    default: "latest"
+  args:
+    description: "Arguments to pass to gres-b2b (e.g. --verify --config .b2b/policy.yml --sarif out.sarif --junit out.xml)."
+    required: false
+    default: "--verify"
+  repo:
+    description: "Repo hosting gres-b2b releases (owner/name)."
+    required: false
+    default: "gres-digital/b2b-governance-mcp"
+  token:
+    description: "GitHub token for downloading releases (use secrets.GITHUB_TOKEN for private repos)."
+    required: false
+    default: ""
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install + run gres-b2b
+      shell: bash
+      env:
+        GRES_B2B_VERSION: ${{ inputs.version }}
+        GRES_B2B_ARGS: ${{ inputs.args }}
+        GRES_B2B_REPO: ${{ inputs.repo }}
+        GITHUB_TOKEN: ${{ inputs.token }}
+      run: |
+        set -euo pipefail
+        bash "${{ github.action_path }}/scripts/install-and-run.sh"
