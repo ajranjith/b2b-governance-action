@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GRES B2B Governance - Live Scan Progress</title>
+  <style>
+    :root {
+      --primary: #2563eb;
+      --success: #059669;
+      --warning: #d97706;
+      --danger: #dc2626;
+      --gray-50: #f9fafb;
+      --gray-100: #f3f4f6;
+      --gray-200: #e5e7eb;
+      --gray-700: #374151;
+      --gray-800: #1f2937;
+      --gray-900: #111827;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #1e3a5f 0%, #0f172a 100%);
+      min-height: 100vh;
+      padding: 2rem;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4);
+      overflow: hidden;
+    }
+
+    .header {
+      background: linear-gradient(135deg, #1e40af 0%, #7c3aed 100%);
+      color: white;
+      padding: 2rem;
+      text-align: center;
+    }
+
+    .header h1 { font-size: 1.5rem; margin-bottom: 0.5rem; }
+    .header p { color: rgba(255,255,255,0.8); }
+
+    .content { padding: 2rem; }
+
+    /* Preflight Checks */
+    .preflight-section {
+      margin-bottom: 2rem;
+      padding: 1.5rem;
+      background: var(--gray-50);
+      border-radius: 12px;
+    }
+
+    .preflight-section h2 {
+      font-size: 1.1rem;
+      color: var(--gray-800);
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .check-item {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.75rem;
+      background: white;
+      border-radius: 8px;
+      margin-bottom: 0.5rem;
+      border: 1px solid var(--gray-200);
+    }
+
+    .check-status {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.9rem;
+      flex-shrink: 0;
+    }
+
+    .check-status.pending { background: var(--gray-200); color: var(--gray-700); }
+    .check-status.running { background: var(--primary); color: white; animation: pulse 1s infinite; }
+    .check-status.pass { background: var(--success); color: white; }
+    .check-status.fail { background: var(--danger); color: white; }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.6; }
+    }
+
+    .check-info { flex: 1; }
+    .check-name { font-weight: 600; color: var(--gray-800); }
+    .check-detail { font-size: 0.85rem; color: var(--gray-600); }
+
+    /* Progress Phases */
+    .progress-phases {
+      margin-bottom: 2rem;
+    }
+
+    .phase {
+      display: flex;
+      align-items: flex-start;
+      gap: 1rem;
+      padding: 1rem 0;
+      border-bottom: 1px solid var(--gray-200);
+    }
+
+    .phase:last-child { border-bottom: none; }
+
+    .phase-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.25rem;
+      background: var(--gray-100);
+      flex-shrink: 0;
+    }
+
+    .phase-icon.active { background: var(--primary); animation: pulse 1s infinite; }
+    .phase-icon.complete { background: var(--success); }
+    .phase-icon.error { background: var(--danger); }
+
+    .phase-content { flex: 1; }
+    .phase-title { font-weight: 600; color: var(--gray-800); margin-bottom: 0.25rem; }
+    .phase-status { font-size: 0.9rem; color: var(--gray-600); }
+
+    /* Live Output Terminal */
+    .terminal {
+      background: var(--gray-900);
+      border-radius: 12px;
+      overflow: hidden;
+      margin-bottom: 2rem;
+    }
+
+    .terminal-header {
+      background: var(--gray-800);
+      padding: 0.75rem 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .terminal-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+    }
+
+    .terminal-dot.red { background: #ef4444; }
+    .terminal-dot.yellow { background: #f59e0b; }
+    .terminal-dot.green { background: #22c55e; }
+
+    .terminal-title {
+      color: var(--gray-300);
+      margin-left: 0.5rem;
+      font-size: 0.85rem;
+    }
+
+    .terminal-body {
+      padding: 1rem;
+      max-height: 300px;
+      overflow-y: auto;
+      font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+      font-size: 0.85rem;
+      line-height: 1.5;
+    }
+
+    .terminal-line {
+      color: #d1d5db;
+      margin-bottom: 0.25rem;
+    }
+
+    .terminal-line.info { color: #60a5fa; }
+    .terminal-line.success { color: #34d399; }
+    .terminal-line.warning { color: #fbbf24; }
+    .terminal-line.error { color: #f87171; }
+
+    /* Final Results */
+    .results-section {
+      text-align: center;
+      padding: 2rem;
+      background: var(--gray-50);
+      border-radius: 12px;
+    }
+
+    .results-section.hidden { display: none; }
+
+    .result-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 1rem 2rem;
+      border-radius: 999px;
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin-bottom: 1.5rem;
+    }
+
+    .result-badge.green { background: #dcfce7; color: #166534; }
+    .result-badge.amber { background: #fef3c7; color: #92400e; }
+    .result-badge.red { background: #fee2e2; color: #991b1b; }
+
+    .result-counts {
+      display: flex;
+      justify-content: center;
+      gap: 2rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .result-count {
+      text-align: center;
+    }
+
+    .result-count .number {
+      font-size: 2rem;
+      font-weight: 700;
+    }
+
+    .result-count .label {
+      font-size: 0.85rem;
+      color: var(--gray-600);
+    }
+
+    .result-count.red .number { color: var(--danger); }
+    .result-count.amber .number { color: var(--warning); }
+    .result-count.green .number { color: var(--success); }
+
+    .action-buttons {
+      display: flex;
+      gap: 1rem;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      padding: 0.75rem 1.5rem;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      transition: all 0.2s;
+    }
+
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-primary:hover { background: #1d4ed8; }
+    .btn-success { background: var(--success); color: white; }
+    .btn-success:hover { background: #047857; }
+    .btn-secondary { background: var(--gray-200); color: var(--gray-700); }
+    .btn-secondary:hover { background: var(--gray-300); }
+
+    /* Connecting indicator */
+    .connecting {
+      text-align: center;
+      padding: 3rem;
+    }
+
+    .connecting .spinner {
+      width: 48px;
+      height: 48px;
+      border: 4px solid var(--gray-200);
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 1rem;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .connecting p {
+      color: var(--gray-600);
+    }
+
+    /* SSE Connection Status */
+    .connection-status {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 1rem;
+      background: var(--gray-100);
+      border-radius: 8px;
+      font-size: 0.85rem;
+      margin-bottom: 1rem;
+    }
+
+    .connection-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+
+    .connection-dot.connected { background: var(--success); }
+    .connection-dot.disconnected { background: var(--danger); }
+    .connection-dot.connecting { background: var(--warning); animation: pulse 1s infinite; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🔍 GRES B2B Governance Scan</h1>
+      <p>Live progress and results</p>
+    </div>
+
+    <div class="content">
+      <!-- Connection Status -->
+      <div class="connection-status" id="connection-status">
+        <div class="connection-dot connecting" id="connection-dot"></div>
+        <span id="connection-text">Connecting to scan service...</span>
+      </div>
+
+      <!-- Preflight Checks Section -->
+      <div class="preflight-section" id="preflight-section">
+        <h2>🔧 Preflight Checks</h2>
+        <div id="preflight-checks">
+          <div class="check-item" data-check="binary">
+            <div class="check-status pending" id="check-binary-status">⏳</div>
+            <div class="check-info">
+              <div class="check-name">gres-b2b binary</div>
+              <div class="check-detail" id="check-binary-detail">Checking binary exists...</div>
+            </div>
+          </div>
+          <div class="check-item" data-check="git">
+            <div class="check-status pending" id="check-git-status">⏳</div>
+            <div class="check-info">
+              <div class="check-name">Git available</div>
+              <div class="check-detail" id="check-git-detail">Checking git installation...</div>
+            </div>
+          </div>
+          <div class="check-item" data-check="config">
+            <div class="check-status pending" id="check-config-status">⏳</div>
+            <div class="check-info">
+              <div class="check-name">Config valid</div>
+              <div class="check-detail" id="check-config-detail">Validating configuration...</div>
+            </div>
+          </div>
+          <div class="check-item" data-check="workspace">
+            <div class="check-status pending" id="check-workspace-status">⏳</div>
+            <div class="check-info">
+              <div class="check-name">Workspace ready</div>
+              <div class="check-detail" id="check-workspace-detail">Checking workspace directory...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Progress Phases -->
+      <div class="progress-phases" id="progress-phases">
+        <div class="phase" data-phase="validate">
+          <div class="phase-icon" id="phase-validate-icon">⚙️</div>
+          <div class="phase-content">
+            <div class="phase-title">Validating Configuration</div>
+            <div class="phase-status" id="phase-validate-status">Waiting...</div>
+          </div>
+        </div>
+        <div class="phase" data-phase="scan">
+          <div class="phase-icon" id="phase-scan-icon">🔍</div>
+          <div class="phase-content">
+            <div class="phase-title">Scanning Codebase</div>
+            <div class="phase-status" id="phase-scan-status">Waiting...</div>
+          </div>
+        </div>
+        <div class="phase" data-phase="analyze">
+          <div class="phase-icon" id="phase-analyze-icon">📊</div>
+          <div class="phase-content">
+            <div class="phase-title">Analyzing Results</div>
+            <div class="phase-status" id="phase-analyze-status">Waiting...</div>
+          </div>
+        </div>
+        <div class="phase" data-phase="report">
+          <div class="phase-icon" id="phase-report-icon">📝</div>
+          <div class="phase-content">
+            <div class="phase-title">Writing Reports</div>
+            <div class="phase-status" id="phase-report-status">Waiting...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Live Terminal Output -->
+      <div class="terminal" id="terminal">
+        <div class="terminal-header">
+          <span class="terminal-dot red"></span>
+          <span class="terminal-dot yellow"></span>
+          <span class="terminal-dot green"></span>
+          <span class="terminal-title">Live Output</span>
+        </div>
+        <div class="terminal-body" id="terminal-output">
+          <div class="terminal-line info">Waiting for scan to start...</div>
+        </div>
+      </div>
+
+      <!-- Results Section (hidden until complete) -->
+      <div class="results-section hidden" id="results-section">
+        <div class="result-badge" id="result-badge">
+          <span id="result-icon">✓</span>
+          <span id="result-text">GREEN</span>
+        </div>
+
+        <div class="result-counts">
+          <div class="result-count red">
+            <div class="number" id="red-count">0</div>
+            <div class="label">RED</div>
+          </div>
+          <div class="result-count amber">
+            <div class="number" id="amber-count">0</div>
+            <div class="label">AMBER</div>
+          </div>
+          <div class="result-count green">
+            <div class="number" id="green-count">0</div>
+            <div class="label">GREEN</div>
+          </div>
+        </div>
+
+        <div class="action-buttons">
+          <button class="btn btn-primary" onclick="openReport()">📊 Open Dashboard</button>
+          <button class="btn btn-success" onclick="runAutoFix()">🔄 Run Auto-Fix</button>
+          <button class="btn btn-secondary" onclick="runAgain()">⟳ Scan Again</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Configuration from URL params or defaults
+    const params = new URLSearchParams(window.location.search);
+    const ssePort = params.get('port') || '8765';
+    const sseHost = params.get('host') || 'localhost';
+    const workspacePath = params.get('workspace') || '.';
+
+    let eventSource = null;
+    let scanComplete = false;
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', function() {
+      connectToSSE();
+    });
+
+    function connectToSSE() {
+      const url = `http://${sseHost}:${ssePort}/events`;
+      updateConnectionStatus('connecting', 'Connecting to scan service...');
+
+      try {
+        eventSource = new EventSource(url);
+
+        eventSource.onopen = function() {
+          updateConnectionStatus('connected', 'Connected - receiving live updates');
+        };
+
+        eventSource.onerror = function(e) {
+          updateConnectionStatus('disconnected', 'Connection lost - retrying...');
+          // SSE will auto-reconnect
+        };
+
+        eventSource.addEventListener('preflight', function(e) {
+          const data = JSON.parse(e.data);
+          handlePreflightCheck(data);
+        });
+
+        eventSource.addEventListener('phase', function(e) {
+          const data = JSON.parse(e.data);
+          handlePhaseUpdate(data);
+        });
+
+        eventSource.addEventListener('output', function(e) {
+          const data = JSON.parse(e.data);
+          appendTerminalLine(data.message, data.level || 'info');
+        });
+
+        eventSource.addEventListener('result', function(e) {
+          const data = JSON.parse(e.data);
+          handleResults(data);
+        });
+
+        eventSource.addEventListener('error', function(e) {
+          const data = JSON.parse(e.data);
+          appendTerminalLine('ERROR: ' + data.message, 'error');
+        });
+
+      } catch (err) {
+        updateConnectionStatus('disconnected', 'Failed to connect: ' + err.message);
+        showDemoMode();
+      }
+    }
+
+    function updateConnectionStatus(status, text) {
+      const dot = document.getElementById('connection-dot');
+      const textEl = document.getElementById('connection-text');
+
+      dot.className = 'connection-dot ' + status;
+      textEl.textContent = text;
+    }
+
+    function handlePreflightCheck(data) {
+      const statusEl = document.getElementById('check-' + data.check + '-status');
+      const detailEl = document.getElementById('check-' + data.check + '-detail');
+
+      if (statusEl) {
+        statusEl.className = 'check-status ' + data.status;
+        statusEl.textContent = data.status === 'pass' ? '✓' :
+                               data.status === 'fail' ? '✗' :
+                               data.status === 'running' ? '⟳' : '⏳';
+      }
+
+      if (detailEl && data.detail) {
+        detailEl.textContent = data.detail;
+      }
+    }
+
+    function handlePhaseUpdate(data) {
+      const iconEl = document.getElementById('phase-' + data.phase + '-icon');
+      const statusEl = document.getElementById('phase-' + data.phase + '-status');
+
+      if (iconEl) {
+        iconEl.className = 'phase-icon ' + (data.status === 'active' ? 'active' :
+                                            data.status === 'complete' ? 'complete' :
+                                            data.status === 'error' ? 'error' : '');
+      }
+
+      if (statusEl && data.message) {
+        statusEl.textContent = data.message;
+      }
+    }
+
+    function appendTerminalLine(message, level) {
+      const terminal = document.getElementById('terminal-output');
+      const line = document.createElement('div');
+      line.className = 'terminal-line ' + level;
+      line.textContent = message;
+      terminal.appendChild(line);
+      terminal.scrollTop = terminal.scrollHeight;
+    }
+
+    function handleResults(data) {
+      scanComplete = true;
+
+      // Update result badge
+      const badge = document.getElementById('result-badge');
+      const icon = document.getElementById('result-icon');
+      const text = document.getElementById('result-text');
+
+      badge.className = 'result-badge ' + data.status.toLowerCase();
+      icon.textContent = data.status === 'GREEN' ? '✓' : data.status === 'AMBER' ? '⚠' : '✗';
+      text.textContent = data.status;
+
+      // Update counts
+      document.getElementById('red-count').textContent = data.red || 0;
+      document.getElementById('amber-count').textContent = data.amber || 0;
+      document.getElementById('green-count').textContent = data.green || 0;
+
+      // Show results section
+      document.getElementById('results-section').classList.remove('hidden');
+
+      // Close SSE connection
+      if (eventSource) {
+        eventSource.close();
+      }
+
+      updateConnectionStatus('connected', 'Scan complete');
+    }
+
+    function openReport() {
+      // Try to open the report in a new tab
+      const reportPath = workspacePath + '/.b2b/report.html';
+      window.open('file://' + reportPath, '_blank');
+    }
+
+    function runAutoFix() {
+      // Redirect to auto-fix mode
+      window.location.href = `?port=${ssePort}&host=${sseHost}&workspace=${workspacePath}&mode=autofix`;
+    }
+
+    function runAgain() {
+      window.location.reload();
+    }
+
+    // Demo mode for when SSE is not available
+    function showDemoMode() {
+      appendTerminalLine('SSE connection not available - showing demo mode', 'warning');
+
+      // Simulate preflight checks
+      setTimeout(() => {
+        handlePreflightCheck({ check: 'binary', status: 'pass', detail: 'gres-b2b v4.0.0' });
+      }, 500);
+      setTimeout(() => {
+        handlePreflightCheck({ check: 'git', status: 'pass', detail: 'git version 2.40.0' });
+      }, 1000);
+      setTimeout(() => {
+        handlePreflightCheck({ check: 'config', status: 'pass', detail: 'config.toml valid' });
+      }, 1500);
+      setTimeout(() => {
+        handlePreflightCheck({ check: 'workspace', status: 'pass', detail: workspacePath });
+      }, 2000);
+
+      // Simulate phases
+      setTimeout(() => {
+        handlePhaseUpdate({ phase: 'validate', status: 'complete', message: 'Configuration valid' });
+        handlePhaseUpdate({ phase: 'scan', status: 'active', message: 'Scanning 47 files...' });
+        appendTerminalLine('Starting scan...', 'info');
+      }, 2500);
+
+      setTimeout(() => {
+        appendTerminalLine('Checking API boundaries...', 'info');
+        appendTerminalLine('Checking service patterns...', 'info');
+      }, 3500);
+
+      setTimeout(() => {
+        handlePhaseUpdate({ phase: 'scan', status: 'complete', message: '47 files scanned' });
+        handlePhaseUpdate({ phase: 'analyze', status: 'active', message: 'Analyzing findings...' });
+        appendTerminalLine('Found 12 checks to report', 'success');
+      }, 5000);
+
+      setTimeout(() => {
+        handlePhaseUpdate({ phase: 'analyze', status: 'complete', message: 'Analysis complete' });
+        handlePhaseUpdate({ phase: 'report', status: 'active', message: 'Writing reports...' });
+      }, 6500);
+
+      setTimeout(() => {
+        handlePhaseUpdate({ phase: 'report', status: 'complete', message: 'Reports written' });
+        appendTerminalLine('Generated .b2b/report.html', 'success');
+        appendTerminalLine('Generated .b2b/report.json', 'success');
+        handleResults({ status: 'AMBER', red: 2, amber: 3, green: 7 });
+      }, 8000);
+    }
+  </script>
+</body>
+</html>

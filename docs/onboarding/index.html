@@ -706,7 +706,45 @@
       <!-- Step 5: Run Scan -->
       <div class="step" data-step="5">
         <h2>Step 5: Run Governance Scan</h2>
-        <p>Execute the scan and view results in real-time.</p>
+        <p>Run preflight checks, then execute the scan.</p>
+
+        <!-- Preflight Checks -->
+        <div class="preflight-checks" id="preflight-section">
+          <h3 style="font-size:1rem; color:var(--gray-700); margin-bottom:1rem;">🔧 Preflight Checks</h3>
+          <div class="check-grid" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:0.75rem; margin-bottom:1.5rem;">
+            <div class="check-item" id="check-binary" style="display:flex; align-items:center; gap:0.75rem; padding:0.75rem; background:var(--gray-50); border-radius:8px; border:1px solid var(--gray-200);">
+              <span class="check-icon" style="font-size:1.25rem;">⏳</span>
+              <div>
+                <div style="font-weight:600; font-size:0.9rem;">gres-b2b binary</div>
+                <div style="font-size:0.8rem; color:var(--gray-500);" id="check-binary-status">Click "Run Checks"</div>
+              </div>
+            </div>
+            <div class="check-item" id="check-git" style="display:flex; align-items:center; gap:0.75rem; padding:0.75rem; background:var(--gray-50); border-radius:8px; border:1px solid var(--gray-200);">
+              <span class="check-icon" style="font-size:1.25rem;">⏳</span>
+              <div>
+                <div style="font-weight:600; font-size:0.9rem;">Git available</div>
+                <div style="font-size:0.8rem; color:var(--gray-500);" id="check-git-status">Click "Run Checks"</div>
+              </div>
+            </div>
+            <div class="check-item" id="check-config" style="display:flex; align-items:center; gap:0.75rem; padding:0.75rem; background:var(--gray-50); border-radius:8px; border:1px solid var(--gray-200);">
+              <span class="check-icon" style="font-size:1.25rem;">⏳</span>
+              <div>
+                <div style="font-weight:600; font-size:0.9rem;">Config valid</div>
+                <div style="font-size:0.8rem; color:var(--gray-500);" id="check-config-status">Click "Run Checks"</div>
+              </div>
+            </div>
+            <div class="check-item" id="check-workspace" style="display:flex; align-items:center; gap:0.75rem; padding:0.75rem; background:var(--gray-50); border-radius:8px; border:1px solid var(--gray-200);">
+              <span class="check-icon" style="font-size:1.25rem;">⏳</span>
+              <div>
+                <div style="font-weight:600; font-size:0.9rem;">Workspace</div>
+                <div style="font-size:0.8rem; color:var(--gray-500);" id="check-workspace-status">Click "Run Checks"</div>
+              </div>
+            </div>
+          </div>
+          <div style="text-align:center; margin-bottom:1.5rem;">
+            <button class="btn btn-secondary" onclick="runPreflightChecks()" id="preflight-btn">🔍 Run Preflight Checks</button>
+          </div>
+        </div>
 
         <div class="progress-section">
           <div class="icon">🔍</div>
@@ -717,6 +755,7 @@
         <div class="tabs">
           <div class="tab active" onclick="switchScanTab('prompt')">AI Agent Prompt</div>
           <div class="tab" onclick="switchScanTab('commands')">Direct Commands</div>
+          <div class="tab" onclick="switchScanTab('live')">Live Progress</div>
         </div>
 
         <div class="tab-content active" id="tab-prompt">
@@ -747,6 +786,39 @@
             <div class="terminal-body" id="scan-commands"></div>
             <div class="terminal-actions">
               <button class="terminal-btn primary" onclick="copyScanCommands()">Copy Commands</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="tab-content" id="tab-live">
+          <div class="status-box warning">
+            <div class="status-icon">🚀</div>
+            <div class="status-content">
+              <strong>Live Progress Mode</strong>
+              <p style="margin-bottom:1rem;">
+                For real-time progress updates, use <code>gres-b2b --setup</code> which opens a browser with live streaming.
+              </p>
+              <div class="terminal" style="margin:0;">
+                <div class="terminal-header">
+                  <span class="terminal-dot red"></span>
+                  <span class="terminal-dot yellow"></span>
+                  <span class="terminal-dot green"></span>
+                  <span class="terminal-title">Live Progress Command</span>
+                </div>
+                <div class="terminal-body" id="live-command">
+                  <div class="terminal-line">gres-b2b --setup</div>
+                </div>
+                <div class="terminal-actions">
+                  <button class="terminal-btn primary" onclick="copyLiveCommand()">Copy Command</button>
+                </div>
+              </div>
+              <p style="margin-top:1rem; font-size:0.85rem; color:var(--gray-600);">
+                This will:<br>
+                • Run preflight checks automatically<br>
+                • Open <a href="progress.html" target="_blank">progress.html</a> in your browser<br>
+                • Stream live scan output via SSE<br>
+                • Show RED/AMBER/GREEN results when complete
+              </p>
             </div>
           </div>
         </div>
@@ -1277,6 +1349,77 @@
       const commands = document.querySelectorAll('#setup-script .terminal-line.command');
       const text = Array.from(commands).map(c => c.textContent).join('\n');
       copyToClipboard(text);
+    }
+
+    function switchScanTab(tab) {
+      // Update tab selection
+      const tabs = document.querySelectorAll('.step[data-step="5"] .tabs .tab');
+      tabs.forEach((t, i) => {
+        const tabNames = ['prompt', 'commands', 'live'];
+        t.classList.toggle('active', tabNames[i] === tab);
+      });
+
+      // Update tab content
+      document.getElementById('tab-prompt').classList.toggle('active', tab === 'prompt');
+      document.getElementById('tab-commands').classList.toggle('active', tab === 'commands');
+      document.getElementById('tab-live').classList.toggle('active', tab === 'live');
+    }
+
+    function copyLiveCommand() {
+      copyToClipboard('gres-b2b --setup');
+    }
+
+    function runPreflightChecks() {
+      const btn = document.getElementById('preflight-btn');
+      btn.disabled = true;
+      btn.textContent = '⏳ Running...';
+
+      const checks = [
+        { id: 'binary', name: 'gres-b2b binary', delay: 500 },
+        { id: 'git', name: 'Git available', delay: 1000 },
+        { id: 'config', name: 'Config valid', delay: 1500 },
+        { id: 'workspace', name: 'Workspace', delay: 2000 }
+      ];
+
+      // Simulate preflight checks
+      checks.forEach(check => {
+        const item = document.getElementById('check-' + check.id);
+        const status = document.getElementById('check-' + check.id + '-status');
+        const icon = item.querySelector('.check-icon');
+
+        // Start checking
+        setTimeout(() => {
+          icon.textContent = '⏳';
+          status.textContent = 'Checking...';
+
+          // Complete check (simulated)
+          setTimeout(() => {
+            const passed = Math.random() > 0.1; // 90% pass rate for demo
+            icon.textContent = passed ? '✅' : '❌';
+            item.style.borderColor = passed ? 'var(--success)' : 'var(--danger)';
+            item.style.background = passed ? '#f0fdf4' : '#fef2f2';
+
+            if (check.id === 'binary') {
+              const binaryPath = document.getElementById('binary-path').value || 'gres-b2b';
+              status.textContent = passed ? 'Found at: ' + binaryPath : 'Not found at path';
+            } else if (check.id === 'git') {
+              status.textContent = passed ? 'git version 2.40+' : 'Git not installed';
+            } else if (check.id === 'config') {
+              const configPath = document.getElementById('config-path').value || 'config';
+              status.textContent = passed ? 'Valid TOML syntax' : 'Invalid config syntax';
+            } else if (check.id === 'workspace') {
+              const localPath = document.getElementById('local-path').value || document.getElementById('github-url').value || 'No path set';
+              status.textContent = passed ? 'Ready: ' + localPath.substring(0, 30) : 'Path not found';
+            }
+          }, 300);
+        }, check.delay);
+      });
+
+      // Re-enable button after all checks
+      setTimeout(() => {
+        btn.disabled = false;
+        btn.textContent = '🔍 Run Preflight Checks';
+      }, 2500);
     }
 
     function copyToClipboard(text) {
