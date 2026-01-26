@@ -1,0 +1,869 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GRES B2B Governance - Setup Wizard</title>
+  <style>
+    :root {
+      --primary: #2563eb;
+      --primary-dark: #1d4ed8;
+      --success: #059669;
+      --warning: #d97706;
+      --danger: #dc2626;
+      --gray-50: #f9fafb;
+      --gray-100: #f3f4f6;
+      --gray-200: #e5e7eb;
+      --gray-300: #d1d5db;
+      --gray-600: #4b5563;
+      --gray-700: #374151;
+      --gray-800: #1f2937;
+      --gray-900: #111827;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 2rem;
+    }
+
+    .wizard-container {
+      max-width: 800px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+      overflow: hidden;
+    }
+
+    .wizard-header {
+      background: var(--gray-900);
+      color: white;
+      padding: 2rem;
+      text-align: center;
+    }
+
+    .wizard-header h1 {
+      font-size: 1.75rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .wizard-header p {
+      color: var(--gray-300);
+      font-size: 0.95rem;
+    }
+
+    .badge {
+      display: inline-block;
+      background: var(--success);
+      color: white;
+      padding: 0.25rem 0.75rem;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+    }
+
+    .wizard-content {
+      padding: 2rem;
+    }
+
+    .step {
+      display: none;
+    }
+
+    .step.active {
+      display: block;
+    }
+
+    .step-indicator {
+      display: flex;
+      justify-content: center;
+      gap: 0.5rem;
+      margin-bottom: 2rem;
+    }
+
+    .step-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--gray-200);
+      transition: all 0.3s;
+    }
+
+    .step-dot.active {
+      background: var(--primary);
+      transform: scale(1.2);
+    }
+
+    .step-dot.completed {
+      background: var(--success);
+    }
+
+    h2 {
+      font-size: 1.5rem;
+      color: var(--gray-900);
+      margin-bottom: 1rem;
+    }
+
+    h3 {
+      font-size: 1.1rem;
+      color: var(--gray-700);
+      margin-bottom: 0.75rem;
+    }
+
+    p {
+      color: var(--gray-600);
+      line-height: 1.6;
+      margin-bottom: 1rem;
+    }
+
+    .option-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1rem;
+      margin: 1.5rem 0;
+    }
+
+    .option-card {
+      border: 2px solid var(--gray-200);
+      border-radius: 12px;
+      padding: 1.5rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      position: relative;
+    }
+
+    .option-card:hover {
+      border-color: var(--primary);
+      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.15);
+    }
+
+    .option-card.selected {
+      border-color: var(--primary);
+      background: rgba(37, 99, 235, 0.05);
+    }
+
+    .option-card.recommended::before {
+      content: 'Recommended';
+      position: absolute;
+      top: -10px;
+      right: 12px;
+      background: var(--success);
+      color: white;
+      padding: 0.2rem 0.6rem;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      font-weight: 600;
+    }
+
+    .option-card h4 {
+      font-size: 1.1rem;
+      color: var(--gray-900);
+      margin-bottom: 0.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .option-card p {
+      font-size: 0.9rem;
+      margin-bottom: 0;
+    }
+
+    .client-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 0.75rem;
+      margin: 1rem 0;
+    }
+
+    .client-option {
+      border: 2px solid var(--gray-200);
+      border-radius: 8px;
+      padding: 1rem;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .client-option:hover {
+      border-color: var(--primary);
+    }
+
+    .client-option.selected {
+      border-color: var(--primary);
+      background: rgba(37, 99, 235, 0.05);
+    }
+
+    .client-option .icon {
+      font-size: 1.5rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .client-option .name {
+      font-weight: 600;
+      color: var(--gray-800);
+      font-size: 0.9rem;
+    }
+
+    .code-block {
+      background: var(--gray-900);
+      color: #e5e7eb;
+      padding: 1rem;
+      border-radius: 8px;
+      font-family: 'Monaco', 'Menlo', monospace;
+      font-size: 0.85rem;
+      overflow-x: auto;
+      margin: 1rem 0;
+      position: relative;
+    }
+
+    .code-block code {
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    .copy-btn {
+      position: absolute;
+      top: 0.5rem;
+      right: 0.5rem;
+      background: var(--gray-700);
+      color: white;
+      border: none;
+      padding: 0.4rem 0.8rem;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.75rem;
+      transition: background 0.2s;
+    }
+
+    .copy-btn:hover {
+      background: var(--gray-600);
+    }
+
+    .copy-btn.copied {
+      background: var(--success);
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      padding: 0.875rem 1.5rem;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      border: none;
+      text-decoration: none;
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: var(--primary-dark);
+    }
+
+    .btn-secondary {
+      background: white;
+      color: var(--gray-700);
+      border: 2px solid var(--gray-300);
+    }
+
+    .btn-secondary:hover {
+      border-color: var(--gray-400);
+      background: var(--gray-50);
+    }
+
+    .btn-success {
+      background: var(--success);
+      color: white;
+    }
+
+    .btn-success:hover {
+      background: #047857;
+    }
+
+    .btn-large {
+      padding: 1rem 2rem;
+      font-size: 1.1rem;
+    }
+
+    .btn-block {
+      width: 100%;
+    }
+
+    .button-group {
+      display: flex;
+      gap: 1rem;
+      margin-top: 2rem;
+      flex-wrap: wrap;
+    }
+
+    .config-section {
+      background: var(--gray-50);
+      border-radius: 8px;
+      padding: 1.5rem;
+      margin: 1.5rem 0;
+    }
+
+    .config-section h4 {
+      color: var(--gray-800);
+      margin-bottom: 0.5rem;
+    }
+
+    .config-path {
+      font-family: monospace;
+      background: var(--gray-200);
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.85rem;
+      color: var(--gray-700);
+    }
+
+    .tabs {
+      display: flex;
+      border-bottom: 2px solid var(--gray-200);
+      margin-bottom: 1rem;
+    }
+
+    .tab {
+      padding: 0.75rem 1.25rem;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -2px;
+      color: var(--gray-600);
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+
+    .tab:hover {
+      color: var(--gray-900);
+    }
+
+    .tab.active {
+      color: var(--primary);
+      border-bottom-color: var(--primary);
+    }
+
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    .checklist {
+      list-style: none;
+      margin: 1rem 0;
+    }
+
+    .checklist li {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.75rem 0;
+      border-bottom: 1px solid var(--gray-100);
+      color: var(--gray-700);
+    }
+
+    .checklist li:last-child {
+      border-bottom: none;
+    }
+
+    .check-icon {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: var(--success);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.8rem;
+    }
+
+    .success-message {
+      text-align: center;
+      padding: 2rem;
+    }
+
+    .success-icon {
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      background: var(--success);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2.5rem;
+      margin: 0 auto 1.5rem;
+    }
+
+    .alert {
+      padding: 1rem;
+      border-radius: 8px;
+      margin: 1rem 0;
+    }
+
+    .alert-info {
+      background: #dbeafe;
+      color: #1e40af;
+      border: 1px solid #93c5fd;
+    }
+
+    .alert-warning {
+      background: #fef3c7;
+      color: #92400e;
+      border: 1px solid #fcd34d;
+    }
+
+    @media (max-width: 600px) {
+      body {
+        padding: 1rem;
+      }
+
+      .wizard-content {
+        padding: 1.5rem;
+      }
+
+      .button-group {
+        flex-direction: column;
+      }
+
+      .btn {
+        width: 100%;
+      }
+
+      .option-cards {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="wizard-container">
+    <div class="wizard-header">
+      <span class="badge">Free Community Edition</span>
+      <h1>GRES B2B Governance</h1>
+      <p>Setup Wizard - Get ready in under 5 minutes</p>
+    </div>
+
+    <div class="wizard-content">
+      <div class="step-indicator">
+        <div class="step-dot active" data-step="1"></div>
+        <div class="step-dot" data-step="2"></div>
+        <div class="step-dot" data-step="3"></div>
+        <div class="step-dot" data-step="4"></div>
+      </div>
+
+      <!-- Step 1: Choose Environment -->
+      <div class="step active" data-step="1">
+        <h2>Choose Your Environment</h2>
+        <p>How would you like to set up GRES B2B Governance?</p>
+
+        <div class="option-cards">
+          <div class="option-card recommended" data-option="codespaces" onclick="selectEnvironment('codespaces')">
+            <h4>☁️ GitHub Codespaces</h4>
+            <p>One-click cloud environment. Everything pre-configured. No local installation needed.</p>
+          </div>
+
+          <div class="option-card" data-option="local" onclick="selectEnvironment('local')">
+            <h4>💻 Local Installation</h4>
+            <p>Install on your machine. Works with any IDE. Full control over your environment.</p>
+          </div>
+        </div>
+
+        <div class="button-group">
+          <button class="btn btn-primary" onclick="nextStep()" id="step1-next" disabled>Continue</button>
+        </div>
+      </div>
+
+      <!-- Step 2: Codespaces or Client Selection -->
+      <div class="step" data-step="2">
+        <!-- Codespaces path -->
+        <div id="codespaces-content" style="display: none;">
+          <h2>Launch Codespaces</h2>
+          <p>Click the button below to open a pre-configured development environment with everything ready to go.</p>
+
+          <div class="alert alert-info">
+            <strong>What's included:</strong> gres-b2b binary installed, MCP server configured, initial governance report generated.
+          </div>
+
+          <a href="https://github.com/codespaces/new?hide_repo_select=true&ref=main&repo=ajranjith/b2b-governance-action"
+             target="_blank"
+             class="btn btn-success btn-large btn-block"
+             style="margin: 1.5rem 0;">
+            🚀 Open in GitHub Codespaces
+          </a>
+
+          <p style="text-align: center; font-size: 0.9rem; color: var(--gray-500);">
+            After launch, open <code>.b2b/report.html</code> to see your governance dashboard.
+          </p>
+
+          <div class="button-group">
+            <button class="btn btn-secondary" onclick="prevStep()">Back</button>
+            <button class="btn btn-primary" onclick="goToStep(4)">Skip to Verification</button>
+          </div>
+        </div>
+
+        <!-- Local path -->
+        <div id="local-content" style="display: none;">
+          <h2>Select Your AI Client</h2>
+          <p>Which AI-powered IDE or tool do you use?</p>
+
+          <div class="client-grid">
+            <div class="client-option" data-client="cursor" onclick="selectClient('cursor')">
+              <div class="icon">⚡</div>
+              <div class="name">Cursor</div>
+            </div>
+            <div class="client-option" data-client="vscode" onclick="selectClient('vscode')">
+              <div class="icon">💻</div>
+              <div class="name">VS Code</div>
+            </div>
+            <div class="client-option" data-client="windsurf" onclick="selectClient('windsurf')">
+              <div class="icon">🏄</div>
+              <div class="name">Windsurf</div>
+            </div>
+            <div class="client-option" data-client="claude" onclick="selectClient('claude')">
+              <div class="icon">🤖</div>
+              <div class="name">Claude Desktop</div>
+            </div>
+            <div class="client-option" data-client="codex" onclick="selectClient('codex')">
+              <div class="icon">🔮</div>
+              <div class="name">Codex CLI</div>
+            </div>
+            <div class="client-option" data-client="other" onclick="selectClient('other')">
+              <div class="icon">📦</div>
+              <div class="name">Other</div>
+            </div>
+          </div>
+
+          <div class="button-group">
+            <button class="btn btn-secondary" onclick="prevStep()">Back</button>
+            <button class="btn btn-primary" onclick="nextStep()" id="step2-next" disabled>Continue</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 3: Installation Instructions -->
+      <div class="step" data-step="3">
+        <h2>Install GRES B2B</h2>
+
+        <div class="tabs">
+          <div class="tab active" data-tab="auto" onclick="switchTab('auto')">Auto Install</div>
+          <div class="tab" data-tab="manual" onclick="switchTab('manual')">Manual</div>
+        </div>
+
+        <div class="tab-content active" data-tab="auto">
+          <div id="install-windows" style="display: none;">
+            <h3>Windows (PowerShell)</h3>
+            <div class="code-block">
+              <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+              <code>irm https://raw.githubusercontent.com/ajranjith/b2b-governance-action/main/templates/wizard/auto-install.ps1 | iex</code>
+            </div>
+            <p>Or download and double-click <code>gres-b2b.exe</code> from the <a href="https://github.com/ajranjith/b2b-governance-action/releases/latest" target="_blank">latest release</a>.</p>
+          </div>
+
+          <div id="install-unix" style="display: none;">
+            <h3>macOS / Linux</h3>
+            <div class="code-block">
+              <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+              <code>curl -sL https://raw.githubusercontent.com/ajranjith/b2b-governance-action/main/templates/wizard/auto-install.sh | bash</code>
+            </div>
+          </div>
+
+          <div class="alert alert-info" style="margin-top: 1rem;">
+            The installer will download the binary, verify checksums, and optionally run the setup wizard.
+          </div>
+        </div>
+
+        <div class="tab-content" data-tab="manual">
+          <h3>Manual Installation</h3>
+          <ol style="margin: 1rem 0; padding-left: 1.5rem; color: var(--gray-700);">
+            <li style="margin-bottom: 0.5rem;">Download the binary from <a href="https://github.com/ajranjith/b2b-governance-action/releases/latest" target="_blank">GitHub Releases</a></li>
+            <li style="margin-bottom: 0.5rem;">Extract to a folder in your PATH</li>
+            <li style="margin-bottom: 0.5rem;">Run <code>gres-b2b --setup</code> to configure MCP</li>
+          </ol>
+        </div>
+
+        <div class="config-section" id="mcp-config">
+          <h4>MCP Configuration</h4>
+          <p id="config-path-info">After installation, add this to your MCP settings:</p>
+          <div id="config-path-location"></div>
+          <div class="code-block">
+            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+            <code id="mcp-config-code">{
+  "mcpServers": {
+    "gres-b2b": {
+      "command": "gres-b2b",
+      "args": []
+    }
+  }
+}</code>
+          </div>
+        </div>
+
+        <div class="button-group">
+          <button class="btn btn-secondary" onclick="prevStep()">Back</button>
+          <button class="btn btn-primary" onclick="nextStep()">I've Installed It</button>
+        </div>
+      </div>
+
+      <!-- Step 4: Verification -->
+      <div class="step" data-step="4">
+        <div class="success-message">
+          <div class="success-icon">✓</div>
+          <h2>Almost Done!</h2>
+          <p>Run the following command to verify your installation and generate your governance dashboard:</p>
+        </div>
+
+        <div class="code-block">
+          <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+          <code>gres-b2b --verify</code>
+        </div>
+
+        <h3 style="margin-top: 2rem;">Success Checklist</h3>
+        <ul class="checklist">
+          <li>
+            <span class="check-icon">✓</span>
+            <span><code>.b2b/report.html</code> - Governance dashboard (RED/AMBER/GREEN)</span>
+          </li>
+          <li>
+            <span class="check-icon">✓</span>
+            <span><code>.b2b/report.json</code> - Machine-readable findings</span>
+          </li>
+          <li>
+            <span class="check-icon">✓</span>
+            <span><code>.b2b/certificate.json</code> - Verification certificate</span>
+          </li>
+        </ul>
+
+        <div class="alert alert-info">
+          <strong>Test MCP:</strong> Ask your AI agent "Run governance scan" and it should respond using the MCP tools.
+        </div>
+
+        <div class="button-group" style="justify-content: center;">
+          <a href="https://github.com/ajranjith/b2b-governance-action" target="_blank" class="btn btn-primary">
+            📚 View Documentation
+          </a>
+          <a href="https://github.com/ajranjith/b2b-governance-action/issues" target="_blank" class="btn btn-secondary">
+            🐛 Report Issue
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentStep = 1;
+    let selectedEnvironment = null;
+    let selectedClient = null;
+
+    // Detect OS
+    function getOS() {
+      const ua = navigator.userAgent;
+      if (ua.indexOf('Win') !== -1) return 'windows';
+      if (ua.indexOf('Mac') !== -1) return 'mac';
+      if (ua.indexOf('Linux') !== -1) return 'linux';
+      return 'unknown';
+    }
+
+    // Client config paths
+    const clientConfigs = {
+      cursor: {
+        name: 'Cursor',
+        windows: '%APPDATA%\\Cursor\\User\\globalStorage\\cursor.mcp\\settings.json',
+        mac: '~/Library/Application Support/Cursor/User/globalStorage/cursor.mcp/settings.json',
+        linux: '~/.config/Cursor/User/globalStorage/cursor.mcp/settings.json'
+      },
+      vscode: {
+        name: 'VS Code',
+        windows: '.vscode/settings.json (workspace) or %APPDATA%\\Code\\User\\settings.json',
+        mac: '.vscode/settings.json (workspace) or ~/Library/Application Support/Code/User/settings.json',
+        linux: '.vscode/settings.json (workspace) or ~/.config/Code/User/settings.json'
+      },
+      windsurf: {
+        name: 'Windsurf',
+        windows: '%APPDATA%\\Windsurf\\User\\globalStorage\\windsurf.mcp\\settings.json',
+        mac: '~/Library/Application Support/Windsurf/User/globalStorage/windsurf.mcp/settings.json',
+        linux: '~/.config/Windsurf/User/globalStorage/windsurf.mcp/settings.json'
+      },
+      claude: {
+        name: 'Claude Desktop',
+        windows: '%APPDATA%\\Claude\\claude_desktop_config.json',
+        mac: '~/Library/Application Support/Claude/claude_desktop_config.json',
+        linux: '~/.config/Claude/claude_desktop_config.json'
+      },
+      codex: {
+        name: 'Codex CLI',
+        windows: '%USERPROFILE%\\.codex\\config.json',
+        mac: '~/.codex/config.json',
+        linux: '~/.codex/config.json'
+      },
+      other: {
+        name: 'Other',
+        windows: 'See your tool\'s MCP documentation',
+        mac: 'See your tool\'s MCP documentation',
+        linux: 'See your tool\'s MCP documentation'
+      }
+    };
+
+    function selectEnvironment(env) {
+      selectedEnvironment = env;
+      document.querySelectorAll('.option-card').forEach(card => {
+        card.classList.remove('selected');
+      });
+      document.querySelector(`[data-option="${env}"]`).classList.add('selected');
+      document.getElementById('step1-next').disabled = false;
+    }
+
+    function selectClient(client) {
+      selectedClient = client;
+      document.querySelectorAll('.client-option').forEach(opt => {
+        opt.classList.remove('selected');
+      });
+      document.querySelector(`[data-client="${client}"]`).classList.add('selected');
+      document.getElementById('step2-next').disabled = false;
+      updateConfigDisplay();
+    }
+
+    function updateConfigDisplay() {
+      if (!selectedClient) return;
+
+      const os = getOS();
+      const config = clientConfigs[selectedClient];
+      const pathEl = document.getElementById('config-path-location');
+
+      let path = config[os] || config['mac'];
+      pathEl.innerHTML = `<span class="config-path">${path}</span>`;
+
+      // Update code based on client
+      const codeEl = document.getElementById('mcp-config-code');
+      if (selectedClient === 'claude') {
+        codeEl.textContent = `{
+  "mcpServers": {
+    "gres-b2b": {
+      "command": "gres-b2b",
+      "args": []
+    }
+  }
+}`;
+      } else if (selectedClient === 'vscode' || selectedClient === 'cursor' || selectedClient === 'windsurf') {
+        codeEl.textContent = `{
+  "mcp.servers": {
+    "gres-b2b": {
+      "command": "gres-b2b",
+      "args": []
+    }
+  }
+}`;
+      } else {
+        codeEl.textContent = `{
+  "mcpServers": {
+    "gres-b2b": {
+      "command": "gres-b2b",
+      "args": []
+    }
+  }
+}`;
+      }
+    }
+
+    function switchTab(tabName) {
+      document.querySelectorAll('.tab').forEach(tab => {
+        tab.classList.remove('active');
+      });
+      document.querySelector(`.tab[data-tab="${tabName}"]`).classList.add('active');
+
+      document.querySelectorAll('.tab-content').forEach(content => {
+        content.classList.remove('active');
+      });
+      document.querySelector(`.tab-content[data-tab="${tabName}"]`).classList.add('active');
+    }
+
+    function showInstallInstructions() {
+      const os = getOS();
+      if (os === 'windows') {
+        document.getElementById('install-windows').style.display = 'block';
+        document.getElementById('install-unix').style.display = 'none';
+      } else {
+        document.getElementById('install-windows').style.display = 'none';
+        document.getElementById('install-unix').style.display = 'block';
+      }
+    }
+
+    function nextStep() {
+      if (currentStep === 1 && selectedEnvironment === 'codespaces') {
+        goToStep(2);
+        document.getElementById('codespaces-content').style.display = 'block';
+        document.getElementById('local-content').style.display = 'none';
+      } else if (currentStep === 1 && selectedEnvironment === 'local') {
+        goToStep(2);
+        document.getElementById('codespaces-content').style.display = 'none';
+        document.getElementById('local-content').style.display = 'block';
+      } else if (currentStep === 2) {
+        showInstallInstructions();
+        goToStep(3);
+      } else {
+        goToStep(currentStep + 1);
+      }
+    }
+
+    function prevStep() {
+      goToStep(currentStep - 1);
+    }
+
+    function goToStep(step) {
+      currentStep = step;
+
+      document.querySelectorAll('.step').forEach(s => {
+        s.classList.remove('active');
+      });
+      document.querySelector(`.step[data-step="${step}"]`).classList.add('active');
+
+      document.querySelectorAll('.step-dot').forEach((dot, index) => {
+        dot.classList.remove('active', 'completed');
+        if (index + 1 < step) {
+          dot.classList.add('completed');
+        } else if (index + 1 === step) {
+          dot.classList.add('active');
+        }
+      });
+    }
+
+    function copyCode(btn) {
+      const codeBlock = btn.parentElement.querySelector('code');
+      navigator.clipboard.writeText(codeBlock.textContent).then(() => {
+        btn.textContent = 'Copied!';
+        btn.classList.add('copied');
+        setTimeout(() => {
+          btn.textContent = 'Copy';
+          btn.classList.remove('copied');
+        }, 2000);
+      });
+    }
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', () => {
+      // Auto-detect and show appropriate install instructions if coming from step 3
+      showInstallInstructions();
+    });
+  </script>
+</body>
+</html>

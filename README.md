@@ -355,7 +355,7 @@ For local development with AI assistants, you have several options:
 
 **No license key required.** Anyone can download and run this action.
 
-The action wrapper is MIT licensed. The `gres-b2b` engine license is defined in the [release repository](https://github.com/ajranjith/b2b-governance-action).
+The action wrapper is MIT licensed. The `gres-b2b` engine license is defined in the [engine repository](https://github.com/ajranjith/B2B-Updated).
 
 ---
 
@@ -371,4 +371,4 @@ The action wrapper is MIT licensed. The `gres-b2b` engine license is defined in 
 
 MIT (this action wrapper)
 
-See [ajranjith/b2b-governance-action](https://github.com/ajranjith/b2b-governance-action) for engine license.
+See [LICENSE](https://github.com/ajranjith/b2b-governance-action/blob/main/LICENSE) for this action wrapper. Engine license is in [B2B-Updated](https://github.com/ajranjith/B2B-Updated).
