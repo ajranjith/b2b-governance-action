@@ -668,6 +668,78 @@
         </div>
       </div>
 
+      <!-- Step 4a: Auto-Authorization Permission -->
+      <div class="step" data-step="4a">
+        <h2>Enable Auto-Rebuild Mode</h2>
+        <p>Allow your AI agent to automatically fix governance issues without manual approval for each change.</p>
+
+        <div class="alert alert-warning" style="margin: 1.5rem 0;">
+          <strong>⚠️ Important:</strong> This enables the AI agent to execute commands and edit files automatically. Only enable this for trusted projects.
+        </div>
+
+        <div class="type-cards">
+          <div class="type-card" data-auth="enabled" onclick="selectAuthMode('enabled')">
+            <div class="icon">🚀</div>
+            <h3>Full Auto-Mode</h3>
+            <p>AI can run commands, edit files, and rebuild without asking permission each time</p>
+          </div>
+
+          <div class="type-card" data-auth="manual" onclick="selectAuthMode('manual')">
+            <div class="icon">🔒</div>
+            <h3>Manual Approval</h3>
+            <p>AI will ask permission before making changes (default, safer option)</p>
+          </div>
+        </div>
+
+        <div id="auto-auth-config" style="display: none;">
+          <h3 style="margin-top: 1.5rem;">Auto-Authorization Configuration</h3>
+          <p>Run this command to enable auto-approval in your Codex config:</p>
+
+          <div class="terminal">
+            <div class="terminal-header">
+              <span class="terminal-dot red"></span>
+              <span class="terminal-dot yellow"></span>
+              <span class="terminal-dot green"></span>
+              <span class="terminal-title" id="auth-terminal-title">Terminal</span>
+            </div>
+            <div class="terminal-body" id="auth-terminal"></div>
+            <div class="terminal-actions">
+              <button class="terminal-btn" onclick="copyAuthConfig()">Copy Command</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="mcp-steps" style="margin-top: 1.5rem; background: #f0fdf4; border: 1px solid #86efac;">
+          <h3 style="color: #166534; margin-bottom: 1rem; padding: 0 1rem;">🔀 Safe Branch Workflow</h3>
+          <div class="mcp-step">
+            <div class="mcp-step-number" style="background: #22c55e;">1</div>
+            <div class="mcp-step-content">
+              <h4>Original Code Protected</h4>
+              <p>Your original code stays untouched. All AI changes are made in a new branch: <code>gres-b2b-fixes/{timestamp}</code></p>
+            </div>
+          </div>
+          <div class="mcp-step">
+            <div class="mcp-step-number" style="background: #22c55e;">2</div>
+            <div class="mcp-step-content">
+              <h4>Before/After Comparison</h4>
+              <p>A comparison report shows exactly what changed. View <code>.b2b/comparison.html</code> to see side-by-side diffs.</p>
+            </div>
+          </div>
+          <div class="mcp-step">
+            <div class="mcp-step-number" style="background: #22c55e;">3</div>
+            <div class="mcp-step-content">
+              <h4>Review & Merge</h4>
+              <p>Review the changes, then merge the branch when satisfied. Reject by simply deleting the branch.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="button-group">
+          <button class="btn btn-secondary" onclick="prevStep()">Back</button>
+          <button class="btn btn-primary" onclick="nextStep()" id="step4a-next" disabled>Continue</button>
+        </div>
+      </div>
+
       <!-- Step 5: Run First Scan -->
       <div class="step" data-step="5">
         <h2>Run Your First Scan</h2>
@@ -721,8 +793,8 @@
         </div>
 
         <div class="ai-prompt-card">
-          <h4>🔧 Auto-Fix Issues</h4>
-          <div class="prompt" onclick="copyPrompt(this)">Run governance scan. For each RED issue found, automatically fix it following the framework guidelines. Show me what you changed.</div>
+          <h4>🔧 Auto-Fix All Issues</h4>
+          <div class="prompt" onclick="copyPrompt(this)">Create a new branch called gres-b2b-fixes, run governance scan, automatically fix all RED and AMBER issues following framework guidelines. When done, show me the before/after comparison and time taken.</div>
         </div>
 
         <div class="ai-prompt-card">
@@ -731,8 +803,8 @@
         </div>
 
         <div class="ai-prompt-card">
-          <h4>📊 Continuous Monitoring</h4>
-          <div class="prompt" onclick="copyPrompt(this)">Watch my project for changes and alert me if any governance violations are introduced</div>
+          <h4>📊 Full Rebuild Report</h4>
+          <div class="prompt" onclick="copyPrompt(this)">Run a full governance scan and rebuild. Create comparison.html showing before/after metrics. Log timing to .b2b/rebuild.log including scan duration, fix duration, and total time.</div>
         </div>
 
         <div class="ai-prompt-card">
@@ -740,8 +812,59 @@
           <div class="prompt" onclick="copyPrompt(this)">Before I commit, run a governance scan. If there are any RED issues, show me what needs to be fixed.</div>
         </div>
 
+        <!-- Output Files Section -->
+        <h3 style="margin-top: 2rem;">📁 Output Files</h3>
+        <div class="mcp-steps" style="background: #faf5ff; border: 1px solid #d8b4fe;">
+          <div class="mcp-step">
+            <div class="mcp-step-number" style="background: #a855f7;">📊</div>
+            <div class="mcp-step-content">
+              <h4>.b2b/report.html</h4>
+              <p>Main governance dashboard with RED/AMBER/GREEN status. <span id="new-project-note" style="display: none;">(Initially empty for new projects until first scan)</span></p>
+            </div>
+          </div>
+          <div class="mcp-step">
+            <div class="mcp-step-number" style="background: #a855f7;">🔄</div>
+            <div class="mcp-step-content">
+              <h4>.b2b/comparison.html</h4>
+              <p>Before/after comparison showing what changed. Side-by-side diffs of fixed files with improvement metrics.</p>
+            </div>
+          </div>
+          <div class="mcp-step">
+            <div class="mcp-step-number" style="background: #a855f7;">⏱️</div>
+            <div class="mcp-step-content">
+              <h4>.b2b/rebuild.log</h4>
+              <p>Timing log capturing: scan start/end, rebuild start/end, total duration, files changed, and issues fixed.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Benefits Section -->
+        <h3 style="margin-top: 2rem;">✨ What You Get</h3>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin: 1rem 0;">
+          <div style="background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; padding: 1rem; text-align: center;">
+            <div style="font-size: 2rem;">🛡️</div>
+            <h4 style="color: #166534; margin: 0.5rem 0;">Safe Changes</h4>
+            <p style="font-size: 0.85rem; margin: 0;">All fixes in separate branch - original code untouched</p>
+          </div>
+          <div style="background: #eff6ff; border: 1px solid #93c5fd; border-radius: 8px; padding: 1rem; text-align: center;">
+            <div style="font-size: 2rem;">📈</div>
+            <h4 style="color: #1e40af; margin: 0.5rem 0;">Clear Metrics</h4>
+            <p style="font-size: 0.85rem; margin: 0;">Before/after comparison shows exact improvements</p>
+          </div>
+          <div style="background: #fefce8; border: 1px solid #fde047; border-radius: 8px; padding: 1rem; text-align: center;">
+            <div style="font-size: 2rem;">⚡</div>
+            <h4 style="color: #854d0e; margin: 0.5rem 0;">Time Tracking</h4>
+            <p style="font-size: 0.85rem; margin: 0;">Know exactly how long scans and rebuilds take</p>
+          </div>
+          <div style="background: #fdf4ff; border: 1px solid #e879f9; border-radius: 8px; padding: 1rem; text-align: center;">
+            <div style="font-size: 2rem;">🤖</div>
+            <h4 style="color: #86198f; margin: 0.5rem 0;">AI-Powered</h4>
+            <p style="font-size: 0.85rem; margin: 0;">Automatic fixes following B2B architecture patterns</p>
+          </div>
+        </div>
+
         <div class="alert alert-info" style="margin-top: 1.5rem;">
-          <strong>How it works:</strong> Your AI agent reads the scan results from <code>.b2b/report.json</code> and uses the framework rules to make corrections. Each fix follows the GRES B2B architecture patterns.
+          <strong>How it works:</strong> Your AI agent reads scan results from <code>.b2b/report.json</code>, creates a fix branch, makes corrections following GRES B2B patterns, generates comparison reports, and logs timing data for each operation.
         </div>
 
         <div class="button-group" style="justify-content: center;">
@@ -761,13 +884,14 @@
     let selectedClient = null;
     let projectPath = '';
     let selectedOS = 'windows';
+    let authMode = null; // 'enabled' or 'manual'
 
     // Flow paths:
-    // New project:      1 -> 2a -> 3 -> 4 -> 5 -> 6
-    // Existing project: 1 -> 2b -> 4 -> 5 -> 6
+    // New project:      1 -> 2a -> 3 -> 4 -> 4a -> 5 -> 6
+    // Existing project: 1 -> 2b -> 4 -> 4a -> 5 -> 6
 
-    const flowNew = ['1', '2a', '3', '4', '5', '6'];
-    const flowExisting = ['1', '2b', '4', '5', '6'];
+    const flowNew = ['1', '2a', '3', '4', '4a', '5', '6'];
+    const flowExisting = ['1', '2b', '4', '4a', '5', '6'];
     let currentFlow = flowNew;
     let currentStepIndex = 0;
 
@@ -1010,6 +1134,93 @@ codex`
       // Set the flow
       currentFlow = type === 'new' ? flowNew : flowExisting;
       updateStepIndicator();
+
+      // Show note for new projects on final step
+      const newProjectNote = document.getElementById('new-project-note');
+      if (newProjectNote) {
+        newProjectNote.style.display = type === 'new' ? 'inline' : 'none';
+      }
+    }
+
+    function selectAuthMode(mode) {
+      authMode = mode;
+      document.querySelectorAll('.step[data-step="4a"] .type-card').forEach(card => {
+        card.classList.remove('selected');
+      });
+      document.querySelector(`[data-auth="${mode}"]`).classList.add('selected');
+      document.getElementById('step4a-next').disabled = false;
+
+      const autoAuthConfig = document.getElementById('auto-auth-config');
+
+      if (mode === 'enabled') {
+        // Show auto-auth configuration
+        autoAuthConfig.style.display = 'block';
+        generateAuthConfig();
+      } else {
+        autoAuthConfig.style.display = 'none';
+      }
+    }
+
+    function generateAuthConfig() {
+      const os = projectType === 'new' ?
+        document.getElementById('os-select').value :
+        document.getElementById('os-select-existing').value;
+
+      const terminal = document.getElementById('auth-terminal');
+      const terminalTitle = document.getElementById('auth-terminal-title');
+
+      // Check if Codex-based client
+      const isCodex = selectedClient === 'codex' || selectedClient === 'vscode-codex';
+
+      if (isCodex) {
+        if (os === 'windows') {
+          terminalTitle.textContent = 'PowerShell';
+          terminal.innerHTML = `
+            <div class="terminal-line info"># Enable auto-approval for Codex CLI</div>
+            <div class="terminal-line prompt" onclick="copyCommand(this)">$configPath = "$env:USERPROFILE\\.codex\\config.toml"</div>
+            <div class="terminal-line prompt" onclick="copyCommand(this)">$autoConfig = @"
+# Auto-approval settings for AI-driven rebuilds
+auto_approve = true
+auto_approve_commands = true
+auto_approve_edits = true
+"@</div>
+            <div class="terminal-line prompt" onclick="copyCommand(this)">$content = Get-Content $configPath -Raw</div>
+            <div class="terminal-line prompt" onclick="copyCommand(this)">if ($content -notmatch 'auto_approve') { Set-Content $configPath ($autoConfig + "`n" + $content) }</div>
+            <div class="terminal-line prompt" onclick="copyCommand(this)">Write-Host "Auto-approval enabled in config.toml"</div>
+          `;
+        } else {
+          terminalTitle.textContent = 'Terminal';
+          terminal.innerHTML = `
+            <div class="terminal-line info"># Enable auto-approval for Codex CLI</div>
+            <div class="terminal-line prompt" onclick="copyCommand(this)">CONFIG_PATH="$HOME/.codex/config.toml"</div>
+            <div class="terminal-line prompt" onclick="copyCommand(this)">cat > /tmp/codex_auto.txt << 'EOF'
+# Auto-approval settings for AI-driven rebuilds
+auto_approve = true
+auto_approve_commands = true
+auto_approve_edits = true
+EOF</div>
+            <div class="terminal-line prompt" onclick="copyCommand(this)">if ! grep -q "auto_approve" "$CONFIG_PATH" 2>/dev/null; then cat /tmp/codex_auto.txt "$CONFIG_PATH" > /tmp/codex_new.txt && mv /tmp/codex_new.txt "$CONFIG_PATH"; fi</div>
+            <div class="terminal-line prompt" onclick="copyCommand(this)">echo "Auto-approval enabled in config.toml"</div>
+          `;
+        }
+      } else {
+        // For non-Codex clients, show general guidance
+        terminal.innerHTML = `
+          <div class="terminal-line info"># Auto-approval varies by AI client</div>
+          <div class="terminal-line output">For ${clientConfigs[selectedClient]?.name || 'your AI client'}:</div>
+          <div class="terminal-line output">Check your AI client's settings for auto-approval options.</div>
+          <div class="terminal-line output">Look for: "Trust workspace" or "Auto-approve edits" settings.</div>
+        `;
+        terminalTitle.textContent = 'Instructions';
+      }
+    }
+
+    function copyAuthConfig() {
+      const commands = document.querySelectorAll('#auth-terminal .terminal-line.prompt');
+      const text = Array.from(commands).map(c => c.textContent).join('\n');
+      navigator.clipboard.writeText(text).then(() => {
+        alert('Auto-approval config copied! Paste in your terminal to enable.');
+      });
     }
 
     function generateInstallCommands() {
@@ -1314,6 +1525,15 @@ codex`
         selectedOS = document.getElementById('os-select-existing').value;
       }
       if (currentStepId === '4') {
+        // Reset auth mode selection when entering step 4a
+        authMode = null;
+        document.querySelectorAll('.step[data-step="4a"] .type-card').forEach(card => {
+          card.classList.remove('selected');
+        });
+        document.getElementById('step4a-next').disabled = true;
+        document.getElementById('auto-auth-config').style.display = 'none';
+      }
+      if (currentStepId === '4a') {
         generateScanCommands();
       }
 
