@@ -630,9 +630,22 @@
         <div class="success-message">
           <div class="success-icon">✓</div>
           <h2>Almost Done!</h2>
-          <p>Run the following command to verify your installation and generate your governance dashboard:</p>
+          <p>Verify your installation and generate your governance dashboard:</p>
         </div>
 
+        <h3>Where to Run</h3>
+        <ol style="margin: 1rem 0 1.5rem 1.5rem; line-height: 1.8;">
+          <li><strong>Open a terminal</strong> (Command Prompt, PowerShell, or Terminal)</li>
+          <li><strong>Navigate to your project folder:</strong></li>
+        </ol>
+        <div class="code-block">
+          <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+          <code>cd path/to/your-b2b-project</code>
+        </div>
+
+        <ol start="3" style="margin: 1rem 0 1.5rem 1.5rem; line-height: 1.8;">
+          <li><strong>Run the verification command:</strong></li>
+        </ol>
         <div class="code-block">
           <button class="copy-btn" onclick="copyCode(this)">Copy</button>
           <code>gres-b2b --verify</code>
