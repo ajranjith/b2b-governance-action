@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>GRES B2B Governance - Setup Wizard</title>
+  <title>GRES B2B Governance - Automated Setup</title>
   <style>
     :root {
       --primary: #2563eb;
@@ -61,6 +61,8 @@
       margin-bottom: 1rem;
     }
 
+    .badge.auto { background: var(--primary); }
+
     .wizard-content { padding: 2rem; }
 
     .step { display: none; }
@@ -88,7 +90,6 @@
     h3 { font-size: 1.1rem; color: var(--gray-700); margin-bottom: 0.75rem; }
     p { color: var(--gray-600); line-height: 1.6; margin-bottom: 1rem; }
 
-    /* Project type cards */
     .type-cards {
       display: grid;
       grid-template-columns: repeat(2, 1fr);
@@ -112,19 +113,6 @@
     .type-card .icon { font-size: 3rem; margin-bottom: 1rem; }
     .type-card h3 { color: var(--gray-800); margin-bottom: 0.5rem; }
     .type-card p { font-size: 0.9rem; color: var(--gray-500); margin-bottom: 0; }
-
-    .type-card.recommended::after {
-      content: 'Recommended';
-      position: absolute;
-      top: -12px;
-      right: 20px;
-      background: var(--success);
-      color: white;
-      padding: 0.3rem 0.8rem;
-      border-radius: 20px;
-      font-size: 0.75rem;
-      font-weight: 600;
-    }
 
     .input-group {
       margin: 1.5rem 0;
@@ -157,7 +145,6 @@
       margin-top: 0.5rem;
     }
 
-    /* Terminal UI */
     .terminal {
       background: #1e1e1e;
       border-radius: 8px;
@@ -185,7 +172,7 @@
     .terminal-dot.green { background: #27ca40; }
 
     .terminal-title {
-      color: var(--gray-400);
+      color: #9ca3af;
       font-size: 0.8rem;
       margin-left: auto;
     }
@@ -208,13 +195,8 @@
     }
 
     .terminal-line:hover { background: rgba(255,255,255,0.1); }
-
-    .terminal-line.prompt::before {
-      content: '$ ';
-      color: var(--success);
-    }
-
-    .terminal-line.output { color: var(--gray-400); cursor: default; }
+    .terminal-line.prompt::before { content: '$ '; color: var(--success); }
+    .terminal-line.output { color: #9ca3af; cursor: default; }
     .terminal-line.output:hover { background: transparent; }
     .terminal-line.success { color: var(--success); }
     .terminal-line.error { color: var(--danger); }
@@ -243,11 +225,11 @@
     .terminal-btn:hover { background: var(--gray-600); }
     .terminal-btn.primary { background: var(--primary); }
     .terminal-btn.primary:hover { background: var(--primary-dark); }
+    .terminal-btn.success { background: var(--success); }
 
-    /* Client cards */
     .client-cards {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
       gap: 1rem;
       margin: 1.5rem 0;
     }
@@ -263,132 +245,47 @@
 
     .client-card:hover { border-color: var(--primary); }
     .client-card.selected { border-color: var(--primary); background: rgba(37, 99, 235, 0.05); }
-
     .client-card .icon { font-size: 2rem; margin-bottom: 0.5rem; }
     .client-card .name { font-weight: 600; color: var(--gray-800); font-size: 0.9rem; }
 
-    /* MCP Steps */
-    .mcp-steps {
-      background: var(--gray-50);
+    .status-box {
       border-radius: 12px;
       padding: 1.5rem;
       margin: 1.5rem 0;
-    }
-
-    .mcp-step {
       display: flex;
+      align-items: center;
       gap: 1rem;
-      padding: 1rem 0;
-      border-bottom: 1px solid var(--gray-200);
     }
 
-    .mcp-step:last-child { border-bottom: none; }
+    .status-box.pending { background: var(--gray-100); border: 2px solid var(--gray-300); }
+    .status-box.running { background: #dbeafe; border: 2px solid #93c5fd; }
+    .status-box.success { background: #d1fae5; border: 2px solid #6ee7b7; }
+    .status-box.error { background: #fee2e2; border: 2px solid #fca5a5; }
 
-    .mcp-step-number {
-      width: 32px;
-      height: 32px;
-      background: var(--primary);
-      color: white;
+    .status-icon {
+      width: 48px;
+      height: 48px;
       border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-weight: 600;
+      font-size: 1.5rem;
       flex-shrink: 0;
     }
 
-    .mcp-step-content { flex: 1; }
-    .mcp-step-content h4 { color: var(--gray-800); margin-bottom: 0.5rem; }
-    .mcp-step-content p { margin-bottom: 0.5rem; font-size: 0.9rem; }
+    .status-box.pending .status-icon { background: var(--gray-300); }
+    .status-box.running .status-icon { background: var(--primary); color: white; animation: pulse 1.5s infinite; }
+    .status-box.success .status-icon { background: var(--success); color: white; }
+    .status-box.error .status-icon { background: var(--danger); color: white; }
 
-    .config-path {
-      font-family: monospace;
-      background: var(--gray-200);
-      padding: 0.5rem 0.75rem;
-      border-radius: 4px;
-      font-size: 0.85rem;
-      color: var(--gray-700);
-      display: inline-block;
-      word-break: break-all;
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
     }
 
-    .code-block {
-      background: var(--gray-900);
-      color: #e5e7eb;
-      padding: 1rem;
-      border-radius: 8px;
-      font-family: 'Monaco', 'Menlo', monospace;
-      font-size: 0.85rem;
-      overflow-x: auto;
-      margin: 0.75rem 0;
-      position: relative;
-    }
+    .status-content h4 { color: var(--gray-800); margin-bottom: 0.25rem; }
+    .status-content p { color: var(--gray-600); margin: 0; font-size: 0.9rem; }
 
-    .code-block code { white-space: pre-wrap; word-break: break-all; }
-
-    .copy-btn {
-      position: absolute;
-      top: 0.5rem;
-      right: 0.5rem;
-      background: var(--gray-700);
-      color: white;
-      border: none;
-      padding: 0.4rem 0.8rem;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 0.75rem;
-    }
-
-    .copy-btn:hover { background: var(--gray-600); }
-    .copy-btn.copied { background: var(--success); }
-
-    /* AI Prompts */
-    .ai-prompt-card {
-      background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
-      border: 2px solid #7dd3fc;
-      border-radius: 12px;
-      padding: 1.5rem;
-      margin: 1rem 0;
-    }
-
-    .ai-prompt-card h4 {
-      color: #0369a1;
-      margin-bottom: 0.75rem;
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-    }
-
-    .ai-prompt-card .prompt {
-      background: white;
-      border: 1px solid #bae6fd;
-      border-radius: 8px;
-      padding: 1rem;
-      font-style: italic;
-      color: var(--gray-700);
-      margin: 0.5rem 0;
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-
-    .ai-prompt-card .prompt:hover {
-      background: #f0f9ff;
-      border-color: #7dd3fc;
-    }
-
-    .ai-prompt-card .prompt::before {
-      content: '"';
-      font-size: 1.5rem;
-      color: #0ea5e9;
-    }
-
-    .ai-prompt-card .prompt::after {
-      content: '"';
-      font-size: 1.5rem;
-      color: #0ea5e9;
-    }
-
-    /* Buttons */
     .btn {
       display: inline-flex;
       align-items: center;
@@ -410,6 +307,7 @@
     .btn-secondary { background: white; color: var(--gray-700); border: 2px solid var(--gray-300); }
     .btn-secondary:hover { border-color: var(--gray-400); background: var(--gray-50); }
     .btn-success { background: var(--success); color: white; }
+    .btn-lg { padding: 1rem 2rem; font-size: 1.1rem; }
 
     .button-group {
       display: flex;
@@ -428,16 +326,51 @@
     .alert-success { background: #d1fae5; color: #065f46; border: 1px solid #6ee7b7; }
     .alert-warning { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; }
 
-    .success-icon {
-      width: 80px;
-      height: 80px;
+    .auto-fix-loop {
+      background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+      border: 2px solid #86efac;
+      border-radius: 16px;
+      padding: 2rem;
+      margin: 2rem 0;
+      text-align: center;
+    }
+
+    .auto-fix-loop h3 { color: #166534; margin-bottom: 1rem; }
+    .auto-fix-loop .loop-icon { font-size: 4rem; margin-bottom: 1rem; }
+
+    .scan-results {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+      margin: 1.5rem 0;
+    }
+
+    .result-card {
+      border-radius: 12px;
+      padding: 1.5rem;
+      text-align: center;
+    }
+
+    .result-card.red { background: #fee2e2; border: 2px solid #fca5a5; }
+    .result-card.amber { background: #fef3c7; border: 2px solid #fcd34d; }
+    .result-card.green { background: #d1fae5; border: 2px solid #6ee7b7; }
+
+    .result-card .count { font-size: 2.5rem; font-weight: 700; }
+    .result-card.red .count { color: var(--danger); }
+    .result-card.amber .count { color: var(--warning); }
+    .result-card.green .count { color: var(--success); }
+    .result-card .label { font-size: 0.9rem; color: var(--gray-600); margin-top: 0.5rem; }
+
+    .success-icon-large {
+      width: 100px;
+      height: 100px;
       border-radius: 50%;
       background: var(--success);
       color: white;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 2.5rem;
+      font-size: 3rem;
       margin: 0 auto 1.5rem;
     }
 
@@ -448,130 +381,25 @@
       .btn { width: 100%; }
       .type-cards { grid-template-columns: 1fr; }
       .client-cards { grid-template-columns: 1fr 1fr; }
+      .scan-results { grid-template-columns: 1fr; }
     }
   </style>
 </head>
 <body>
   <div class="wizard-container">
     <div class="wizard-header">
-      <span class="badge">Free - No License Required</span>
-      <h1>GRES B2B Governance Setup</h1>
-      <p>Interactive wizard with built-in terminal</p>
+      <span class="badge auto">Fully Automated Setup</span>
+      <h1>GRES B2B Governance</h1>
+      <p>One-click setup with AI-powered auto-fix</p>
     </div>
 
     <div class="wizard-content">
-      <div class="step-indicator" id="step-indicator">
-        <!-- Dots will be updated dynamically -->
-      </div>
+      <div class="step-indicator" id="step-indicator"></div>
 
-      <!-- Step 1: New or Existing Project -->
+      <!-- Step 1: Select AI Client -->
       <div class="step active" data-step="1">
-        <h2>Welcome! What would you like to do?</h2>
-        <p>Choose how you want to set up GRES B2B Governance for your project.</p>
-
-        <div class="type-cards">
-          <div class="type-card" data-type="new" onclick="selectProjectType('new')">
-            <div class="icon">🆕</div>
-            <h3>New Project</h3>
-            <p>I'm starting fresh and want to add governance to a new or existing codebase</p>
-          </div>
-
-          <div class="type-card recommended" data-type="existing" onclick="selectProjectType('existing')">
-            <div class="icon">📁</div>
-            <h3>Existing Setup</h3>
-            <p>I already have gres-b2b installed and want to connect it to my AI agent</p>
-          </div>
-        </div>
-
-        <div class="button-group">
-          <button class="btn btn-primary" onclick="nextStep()" id="step1-next" disabled>Continue</button>
-        </div>
-      </div>
-
-      <!-- Step 2a: New Project - Enter Path -->
-      <div class="step" data-step="2a">
-        <h2>Where is your project?</h2>
-        <p>Enter your B2B eCommerce project location. You can use a local folder or clone from GitHub.</p>
-
-        <div class="input-group">
-          <label>Project Location</label>
-          <input type="text" id="project-path" placeholder="C:\Projects\my-b2b-app  or  https://github.com/user/repo" />
-          <p class="hint">Paste your local folder path or GitHub repository URL</p>
-        </div>
-
-        <div class="input-group">
-          <label>Your Operating System</label>
-          <select id="os-select">
-            <option value="windows">Windows</option>
-            <option value="mac">macOS</option>
-            <option value="linux">Linux</option>
-          </select>
-        </div>
-
-        <div class="button-group">
-          <button class="btn btn-secondary" onclick="prevStep()">Back</button>
-          <button class="btn btn-primary" onclick="nextStep()">Continue</button>
-        </div>
-      </div>
-
-      <!-- Step 2b: Existing Project - Just select OS -->
-      <div class="step" data-step="2b">
-        <h2>Let's connect your AI agent</h2>
-        <p>Since you already have gres-b2b installed, we'll skip straight to connecting your AI coding assistant.</p>
-
-        <div class="input-group">
-          <label>Your Operating System</label>
-          <select id="os-select-existing">
-            <option value="windows">Windows</option>
-            <option value="mac">macOS</option>
-            <option value="linux">Linux</option>
-          </select>
-        </div>
-
-        <div class="alert alert-info">
-          <strong>Quick check:</strong> Run <code>gres-b2b --version</code> in your terminal to verify installation.
-        </div>
-
-        <div class="button-group">
-          <button class="btn btn-secondary" onclick="prevStep()">Back</button>
-          <button class="btn btn-primary" onclick="nextStep()">Continue to AI Connection</button>
-        </div>
-      </div>
-
-      <!-- Step 3: Install Tool (New Project only) -->
-      <div class="step" data-step="3">
-        <h2>Install GRES B2B Tool</h2>
-        <p>Run these commands in your terminal. Click any command to copy it.</p>
-
-        <div class="terminal">
-          <div class="terminal-header">
-            <span class="terminal-dot red"></span>
-            <span class="terminal-dot yellow"></span>
-            <span class="terminal-dot green"></span>
-            <span class="terminal-title" id="terminal-title">Terminal</span>
-          </div>
-          <div class="terminal-body" id="install-terminal">
-            <!-- Commands will be generated here -->
-          </div>
-          <div class="terminal-actions">
-            <button class="terminal-btn" onclick="copyAllCommands()">Copy All Commands</button>
-          </div>
-        </div>
-
-        <div class="alert alert-info">
-          <strong>Tip:</strong> Click any command to copy it, then paste in your terminal.
-        </div>
-
-        <div class="button-group">
-          <button class="btn btn-secondary" onclick="prevStep()">Back</button>
-          <button class="btn btn-primary" onclick="nextStep()">I've Installed It → Continue</button>
-        </div>
-      </div>
-
-      <!-- Step 4: Select AI Client -->
-      <div class="step" data-step="4">
-        <h2>Connect to Your AI Agent</h2>
-        <p>Select the AI coding assistant you use. We'll configure MCP so it can run governance scans automatically.</p>
+        <h2>Which AI Assistant do you use?</h2>
+        <p>Select your AI coding assistant. We'll auto-configure it to run governance scans.</p>
 
         <div class="client-cards">
           <div class="client-card" data-client="claude" onclick="selectClient('claude')">
@@ -590,289 +418,217 @@
             <div class="icon">💻</div>
             <div class="name">VS Code + Copilot</div>
           </div>
-          <div class="client-card" data-client="vscode-codex" onclick="selectClient('vscode-codex')">
-            <div class="icon">🧠</div>
-            <div class="name">VS Code + Codex</div>
-          </div>
           <div class="client-card" data-client="codex" onclick="selectClient('codex')">
             <div class="icon">🔮</div>
             <div class="name">Codex CLI</div>
           </div>
         </div>
 
-        <div id="mcp-instructions" style="display: none;">
-          <!-- Auto-config option -->
-          <div id="auto-config-section" style="display: none;">
-            <h3 style="margin-bottom: 1rem;">Option A: Auto-Configure (Recommended)</h3>
-            <p>Run this command to automatically add the MCP server to your config:</p>
-            <div class="terminal">
-              <div class="terminal-header">
-                <span class="terminal-dot red"></span>
-                <span class="terminal-dot yellow"></span>
-                <span class="terminal-dot green"></span>
-                <span class="terminal-title" id="auto-config-terminal-title">Terminal</span>
-              </div>
-              <div class="terminal-body" id="auto-config-terminal"></div>
-              <div class="terminal-actions">
-                <button class="terminal-btn" onclick="copyAutoConfig()">Copy Command</button>
-              </div>
-            </div>
-          </div>
+        <div class="button-group">
+          <button class="btn btn-primary" onclick="nextStep()" id="step1-next" disabled>Continue</button>
+        </div>
+      </div>
 
-          <!-- Manual config option -->
-          <div id="manual-config-section">
-            <h3 id="manual-config-title" style="margin-bottom: 1rem;">Manual Configuration</h3>
-            <div class="mcp-steps">
-              <div class="mcp-step">
-                <div class="mcp-step-number">1</div>
-                <div class="mcp-step-content">
-                  <h4>Open Settings File</h4>
-                  <p>Open this file in a text editor:</p>
-                  <div class="config-path" id="config-path">Loading...</div>
-                </div>
-              </div>
-              <div class="mcp-step">
-                <div class="mcp-step-number">2</div>
-                <div class="mcp-step-content">
-                  <h4>Add MCP Configuration</h4>
-                  <p>Add or merge this configuration:</p>
-                  <div class="code-block">
-                    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-                    <code id="mcp-config-code"></code>
-                  </div>
-                </div>
-              </div>
-              <div class="mcp-step">
-                <div class="mcp-step-number">3</div>
-                <div class="mcp-step-content">
-                  <h4>Restart Your AI Client</h4>
-                  <p id="restart-instructions">Close and reopen <span id="client-name">your AI client</span> to load the MCP server.</p>
-                  <div id="restart-command" style="display: none; margin-top: 0.5rem;"></div>
-                </div>
-              </div>
-              <div class="mcp-step" id="test-step">
-                <div class="mcp-step-number">4</div>
-                <div class="mcp-step-content">
-                  <h4>Test MCP Connection</h4>
-                  <p>Verify the MCP server is working:</p>
-                  <div id="test-command"></div>
-                </div>
-              </div>
-            </div>
+      <!-- Step 2: Config Path & Auto-Setup -->
+      <div class="step" data-step="2">
+        <h2>Auto-Configure MCP Server</h2>
+        <p>Paste your config file path and we'll set everything up automatically.</p>
+
+        <div class="input-group">
+          <label>Your Operating System</label>
+          <select id="os-select" onchange="updateConfigPath()">
+            <option value="windows">Windows</option>
+            <option value="mac">macOS</option>
+            <option value="linux">Linux</option>
+          </select>
+        </div>
+
+        <div class="input-group">
+          <label>Config File Path</label>
+          <input type="text" id="config-path-input" placeholder="Paste your config.toml or settings.json path" />
+          <p class="hint" id="config-hint">Default location: <code id="default-config-path">Loading...</code></p>
+        </div>
+
+        <div class="status-box pending" id="setup-status">
+          <div class="status-icon">⏳</div>
+          <div class="status-content">
+            <h4>Ready to Configure</h4>
+            <p>Click "Run Setup" to auto-configure your AI client</p>
+          </div>
+        </div>
+
+        <div class="terminal" id="setup-terminal" style="display: none;">
+          <div class="terminal-header">
+            <span class="terminal-dot red"></span>
+            <span class="terminal-dot yellow"></span>
+            <span class="terminal-dot green"></span>
+            <span class="terminal-title" id="setup-terminal-title">Terminal</span>
+          </div>
+          <div class="terminal-body" id="setup-terminal-body"></div>
+          <div class="terminal-actions">
+            <button class="terminal-btn primary" onclick="copySetupCommand()">Copy & Run This Command</button>
           </div>
         </div>
 
         <div class="button-group">
           <button class="btn btn-secondary" onclick="prevStep()">Back</button>
-          <button class="btn btn-primary" onclick="nextStep()" id="step4-next" disabled>Continue</button>
+          <button class="btn btn-primary btn-lg" onclick="runSetup()" id="run-setup-btn">Run Setup</button>
+          <button class="btn btn-success" onclick="nextStep()" id="step2-next" style="display: none;">Setup Complete → Continue</button>
         </div>
       </div>
 
-      <!-- Step 4a: Auto-Authorization Permission -->
-      <div class="step" data-step="4a">
-        <h2>Enable Auto-Rebuild Mode</h2>
-        <p>Allow your AI agent to automatically fix governance issues without manual approval for each change.</p>
+      <!-- Step 3: Project Location -->
+      <div class="step" data-step="3">
+        <h2>Where is your project?</h2>
+        <p>Enter a GitHub URL to clone, or a local folder path. We'll set up a safe working branch.</p>
 
-        <div class="alert alert-warning" style="margin: 1.5rem 0;">
-          <strong>⚠️ Important:</strong> This enables the AI agent to execute commands and edit files automatically. Only enable this for trusted projects.
+        <div class="input-group">
+          <label>Project Location</label>
+          <input type="text" id="project-path" placeholder="https://github.com/user/repo  or  C:\Projects\my-app" oninput="detectProjectType()" />
+          <p class="hint" id="project-hint">We'll clone GitHub repos or create a backup branch for local folders</p>
         </div>
 
-        <div class="type-cards">
-          <div class="type-card" data-auth="enabled" onclick="selectAuthMode('enabled')">
-            <div class="icon">🚀</div>
-            <h3>Full Auto-Mode</h3>
-            <p>AI can run commands, edit files, and rebuild without asking permission each time</p>
-          </div>
-
-          <div class="type-card" data-auth="manual" onclick="selectAuthMode('manual')">
-            <div class="icon">🔒</div>
-            <h3>Manual Approval</h3>
-            <p>AI will ask permission before making changes (default, safer option)</p>
+        <div class="status-box pending" id="project-status">
+          <div class="status-icon">📁</div>
+          <div class="status-content">
+            <h4 id="project-status-title">Enter Project Location</h4>
+            <p id="project-status-desc">Paste a GitHub URL or local folder path above</p>
           </div>
         </div>
 
-        <div id="auto-auth-config" style="display: none;">
-          <h3 style="margin-top: 1.5rem;">Auto-Authorization Configuration</h3>
-          <p>Run this command to enable auto-approval in your Codex config:</p>
-
-          <div class="terminal">
-            <div class="terminal-header">
-              <span class="terminal-dot red"></span>
-              <span class="terminal-dot yellow"></span>
-              <span class="terminal-dot green"></span>
-              <span class="terminal-title" id="auth-terminal-title">Terminal</span>
-            </div>
-            <div class="terminal-body" id="auth-terminal"></div>
-            <div class="terminal-actions">
-              <button class="terminal-btn" onclick="copyAuthConfig()">Copy Command</button>
-            </div>
+        <div class="terminal" id="clone-terminal" style="display: none;">
+          <div class="terminal-header">
+            <span class="terminal-dot red"></span>
+            <span class="terminal-dot yellow"></span>
+            <span class="terminal-dot green"></span>
+            <span class="terminal-title">Terminal</span>
           </div>
-        </div>
-
-        <div class="mcp-steps" style="margin-top: 1.5rem; background: #f0fdf4; border: 1px solid #86efac;">
-          <h3 style="color: #166534; margin-bottom: 1rem; padding: 0 1rem;">🔀 Safe Branch Workflow</h3>
-          <div class="mcp-step">
-            <div class="mcp-step-number" style="background: #22c55e;">1</div>
-            <div class="mcp-step-content">
-              <h4>Original Code Protected</h4>
-              <p>Your original code stays untouched. All AI changes are made in a new branch: <code>gres-b2b-fixes/{timestamp}</code></p>
-            </div>
-          </div>
-          <div class="mcp-step">
-            <div class="mcp-step-number" style="background: #22c55e;">2</div>
-            <div class="mcp-step-content">
-              <h4>Before/After Comparison</h4>
-              <p>A comparison report shows exactly what changed. View <code>.b2b/comparison.html</code> to see side-by-side diffs.</p>
-            </div>
-          </div>
-          <div class="mcp-step">
-            <div class="mcp-step-number" style="background: #22c55e;">3</div>
-            <div class="mcp-step-content">
-              <h4>Review & Merge</h4>
-              <p>Review the changes, then merge the branch when satisfied. Reject by simply deleting the branch.</p>
-            </div>
+          <div class="terminal-body" id="clone-terminal-body"></div>
+          <div class="terminal-actions">
+            <button class="terminal-btn primary" onclick="copyCloneCommand()">Copy & Run This Command</button>
           </div>
         </div>
 
         <div class="button-group">
           <button class="btn btn-secondary" onclick="prevStep()">Back</button>
-          <button class="btn btn-primary" onclick="nextStep()" id="step4a-next" disabled>Continue</button>
+          <button class="btn btn-primary" onclick="nextStep()" id="step3-next" disabled>Continue to Scan</button>
         </div>
       </div>
 
-      <!-- Step 5: Run First Scan -->
-      <div class="step" data-step="5">
-        <h2>Run Your First Scan</h2>
-        <p>Let's verify everything works by running a governance scan on your project.</p>
+      <!-- Step 4: Run Scan & View Results -->
+      <div class="step" data-step="4">
+        <h2>Run Governance Scan</h2>
+        <p>We'll scan your project and open the results automatically.</p>
 
         <div class="terminal">
           <div class="terminal-header">
             <span class="terminal-dot red"></span>
             <span class="terminal-dot yellow"></span>
             <span class="terminal-dot green"></span>
-            <span class="terminal-title">Run Governance Scan</span>
+            <span class="terminal-title">Run Scan</span>
           </div>
-          <div class="terminal-body" id="scan-terminal">
-            <!-- Scan commands will be generated here -->
-          </div>
+          <div class="terminal-body" id="scan-terminal"></div>
           <div class="terminal-actions">
-            <button class="terminal-btn" onclick="copyScanCommands()">Copy Commands</button>
+            <button class="terminal-btn primary" onclick="copyScanCommand()">Copy & Run Scan Command</button>
+            <button class="terminal-btn success" onclick="openReport()">Open Results in New Tab</button>
           </div>
         </div>
 
-        <h3 style="margin-top: 1.5rem;">Or Ask Your AI Agent</h3>
-        <div class="ai-prompt-card">
-          <h4>🤖 Say This to Your AI</h4>
-          <div class="prompt" onclick="copyPrompt(this)">Run a governance scan on my project and show me the results</div>
-        </div>
-
-        <div class="alert alert-success">
-          <strong>Success looks like:</strong> A <code>.b2b/report.html</code> file is created with RED/AMBER/GREEN status.
+        <div class="alert alert-info">
+          <strong>What happens:</strong> The scan creates <code>.b2b/report.html</code> with RED/AMBER/GREEN findings. Results open automatically in a new browser tab.
         </div>
 
         <div class="button-group">
           <button class="btn btn-secondary" onclick="prevStep()">Back</button>
-          <button class="btn btn-primary" onclick="nextStep()">I See the Report → Continue</button>
+          <button class="btn btn-primary btn-lg" onclick="nextStep()">I've Run the Scan → Start Auto-Fix</button>
         </div>
       </div>
 
-      <!-- Step 6: Auto-Correction -->
+      <!-- Step 5: Auto-Fix Loop -->
+      <div class="step" data-step="5">
+        <h2>Auto-Fix Loop</h2>
+        <p>Your AI agent will automatically fix issues until everything is GREEN.</p>
+
+        <div class="auto-fix-loop">
+          <div class="loop-icon">🔄</div>
+          <h3>Continuous Auto-Fix Mode</h3>
+          <p>Copy this prompt to your AI agent. It will keep fixing issues until all checks pass.</p>
+        </div>
+
+        <div class="terminal">
+          <div class="terminal-header">
+            <span class="terminal-dot red"></span>
+            <span class="terminal-dot yellow"></span>
+            <span class="terminal-dot green"></span>
+            <span class="terminal-title">AI Agent Prompt</span>
+          </div>
+          <div class="terminal-body">
+            <div class="terminal-line info"># Copy this ENTIRE prompt to your AI agent:</div>
+            <div class="terminal-line output" id="auto-fix-prompt" style="white-space: pre-wrap; cursor: pointer;" onclick="copyAutoFixPrompt()"></div>
+          </div>
+          <div class="terminal-actions">
+            <button class="terminal-btn primary" onclick="copyAutoFixPrompt()">Copy Auto-Fix Prompt</button>
+          </div>
+        </div>
+
+        <div class="alert alert-success">
+          <strong>How it works:</strong>
+          <ol style="margin: 0.5rem 0 0 1.5rem;">
+            <li>AI creates a new branch: <code>gres-b2b-fixes/{timestamp}</code></li>
+            <li>Runs scan → reads RED/AMBER issues from <code>.b2b/report.json</code></li>
+            <li>Fixes issues one by one following B2B patterns</li>
+            <li>Re-scans after each fix to verify</li>
+            <li>Repeats until all GREEN</li>
+            <li>Generates <code>.b2b/comparison.html</code> and <code>.b2b/rebuild.log</code></li>
+          </ol>
+        </div>
+
+        <div class="button-group">
+          <button class="btn btn-secondary" onclick="prevStep()">Back</button>
+          <button class="btn btn-success btn-lg" onclick="nextStep()">Done! View Summary</button>
+        </div>
+      </div>
+
+      <!-- Step 6: Complete -->
       <div class="step" data-step="6">
         <div style="text-align: center;">
-          <div class="success-icon">✓</div>
-          <h2>You're All Set!</h2>
-          <p>Your AI agent is now connected to GRES B2B Governance.</p>
+          <div class="success-icon-large">✓</div>
+          <h2>Setup Complete!</h2>
+          <p>Your AI agent is now configured for automated governance.</p>
         </div>
 
-        <h3 style="margin-top: 2rem;">Auto-Correction Prompts</h3>
-        <p>Use these prompts to have your AI agent automatically fix governance issues:</p>
-
-        <div class="ai-prompt-card">
-          <h4>🔍 Scan & Review</h4>
-          <div class="prompt" onclick="copyPrompt(this)">Run governance scan and explain each RED and AMBER finding</div>
-        </div>
-
-        <div class="ai-prompt-card">
-          <h4>🔧 Auto-Fix All Issues</h4>
-          <div class="prompt" onclick="copyPrompt(this)">Create a new branch called gres-b2b-fixes, run governance scan, automatically fix all RED and AMBER issues following framework guidelines. When done, show me the before/after comparison and time taken.</div>
-        </div>
-
-        <div class="ai-prompt-card">
-          <h4>🎯 Fix Specific Category</h4>
-          <div class="prompt" onclick="copyPrompt(this)">Run governance scan and fix all issues related to [CATEGORY: permissions / database access / dealer boundaries / audit logging]</div>
-        </div>
-
-        <div class="ai-prompt-card">
-          <h4>📊 Full Rebuild Report</h4>
-          <div class="prompt" onclick="copyPrompt(this)">Run a full governance scan and rebuild. Create comparison.html showing before/after metrics. Log timing to .b2b/rebuild.log including scan duration, fix duration, and total time.</div>
-        </div>
-
-        <div class="ai-prompt-card">
-          <h4>✅ Pre-Commit Check</h4>
-          <div class="prompt" onclick="copyPrompt(this)">Before I commit, run a governance scan. If there are any RED issues, show me what needs to be fixed.</div>
-        </div>
-
-        <!-- Output Files Section -->
-        <h3 style="margin-top: 2rem;">📁 Output Files</h3>
-        <div class="mcp-steps" style="background: #faf5ff; border: 1px solid #d8b4fe;">
-          <div class="mcp-step">
-            <div class="mcp-step-number" style="background: #a855f7;">📊</div>
-            <div class="mcp-step-content">
-              <h4>.b2b/report.html</h4>
-              <p>Main governance dashboard with RED/AMBER/GREEN status. <span id="new-project-note" style="display: none;">(Initially empty for new projects until first scan)</span></p>
-            </div>
+        <h3 style="margin-top: 2rem;">Output Files</h3>
+        <div class="scan-results">
+          <div class="result-card green">
+            <div class="count">📊</div>
+            <div class="label">.b2b/report.html<br>Main Dashboard</div>
           </div>
-          <div class="mcp-step">
-            <div class="mcp-step-number" style="background: #a855f7;">🔄</div>
-            <div class="mcp-step-content">
-              <h4>.b2b/comparison.html</h4>
-              <p>Before/after comparison showing what changed. Side-by-side diffs of fixed files with improvement metrics.</p>
-            </div>
+          <div class="result-card amber">
+            <div class="count">🔄</div>
+            <div class="label">.b2b/comparison.html<br>Before/After Diff</div>
           </div>
-          <div class="mcp-step">
-            <div class="mcp-step-number" style="background: #a855f7;">⏱️</div>
-            <div class="mcp-step-content">
-              <h4>.b2b/rebuild.log</h4>
-              <p>Timing log capturing: scan start/end, rebuild start/end, total duration, files changed, and issues fixed.</p>
-            </div>
+          <div class="result-card red">
+            <div class="count">⏱️</div>
+            <div class="label">.b2b/rebuild.log<br>Timing Log</div>
           </div>
         </div>
 
-        <!-- Benefits Section -->
-        <h3 style="margin-top: 2rem;">✨ What You Get</h3>
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin: 1rem 0;">
-          <div style="background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; padding: 1rem; text-align: center;">
-            <div style="font-size: 2rem;">🛡️</div>
-            <h4 style="color: #166534; margin: 0.5rem 0;">Safe Changes</h4>
-            <p style="font-size: 0.85rem; margin: 0;">All fixes in separate branch - original code untouched</p>
-          </div>
-          <div style="background: #eff6ff; border: 1px solid #93c5fd; border-radius: 8px; padding: 1rem; text-align: center;">
-            <div style="font-size: 2rem;">📈</div>
-            <h4 style="color: #1e40af; margin: 0.5rem 0;">Clear Metrics</h4>
-            <p style="font-size: 0.85rem; margin: 0;">Before/after comparison shows exact improvements</p>
-          </div>
-          <div style="background: #fefce8; border: 1px solid #fde047; border-radius: 8px; padding: 1rem; text-align: center;">
-            <div style="font-size: 2rem;">⚡</div>
-            <h4 style="color: #854d0e; margin: 0.5rem 0;">Time Tracking</h4>
-            <p style="font-size: 0.85rem; margin: 0;">Know exactly how long scans and rebuilds take</p>
-          </div>
-          <div style="background: #fdf4ff; border: 1px solid #e879f9; border-radius: 8px; padding: 1rem; text-align: center;">
-            <div style="font-size: 2rem;">🤖</div>
-            <h4 style="color: #86198f; margin: 0.5rem 0;">AI-Powered</h4>
-            <p style="font-size: 0.85rem; margin: 0;">Automatic fixes following B2B architecture patterns</p>
-          </div>
-        </div>
-
-        <div class="alert alert-info" style="margin-top: 1.5rem;">
-          <strong>How it works:</strong> Your AI agent reads scan results from <code>.b2b/report.json</code>, creates a fix branch, makes corrections following GRES B2B patterns, generates comparison reports, and logs timing data for each operation.
+        <div class="alert alert-info">
+          <strong>Quick prompts for your AI agent:</strong>
+          <ul style="margin: 0.5rem 0 0 1.5rem;">
+            <li>"Run governance scan" - Quick check</li>
+            <li>"Fix all RED issues" - Targeted fixes</li>
+            <li>"Full auto-fix until GREEN" - Complete rebuild</li>
+            <li>"Show comparison report" - View changes</li>
+          </ul>
         </div>
 
         <div class="button-group" style="justify-content: center;">
           <a href="https://github.com/ajranjith/b2b-governance-action" target="_blank" class="btn btn-primary">
-            📚 View Full Documentation
+            📚 Documentation
           </a>
           <a href="https://github.com/ajranjith/b2b-governance-action/releases" target="_blank" class="btn btn-secondary">
-            📦 Download Latest Release
+            📦 Releases
           </a>
         </div>
       </div>
@@ -880,722 +636,355 @@
   </div>
 
   <script>
-    // VERSION: 2026-01-26-v4 - Fixed PowerShell backtick syntax error
-    console.log('GRES B2B Wizard Script Loaded - v4 (fixed)');
+    // VERSION: 2026-01-26-v5 - Fully Automated Setup
+    console.log('GRES B2B Wizard - v5 (Fully Automated)');
 
-    let projectType = null; // 'new' or 'existing'
     let selectedClient = null;
-    let projectPath = '';
     let selectedOS = 'windows';
-    let authMode = null; // 'enabled' or 'manual'
+    let projectPath = '';
+    let configPath = '';
 
-    // Flow paths:
-    // New project:      1 -> 2a -> 3 -> 4 -> 4a -> 5 -> 6
-    // Existing project: 1 -> 2b -> 4 -> 4a -> 5 -> 6
-
-    const flowNew = ['1', '2a', '3', '4', '4a', '5', '6'];
-    const flowExisting = ['1', '2b', '4', '4a', '5', '6'];
-    let currentFlow = flowNew;
+    const flow = ['1', '2', '3', '4', '5', '6'];
     let currentStepIndex = 0;
-
-    // Detect OS on load
-    function detectOS() {
-      const ua = navigator.userAgent;
-      if (ua.indexOf('Win') !== -1) return 'windows';
-      if (ua.indexOf('Mac') !== -1) return 'mac';
-      if (ua.indexOf('Linux') !== -1) return 'linux';
-      return 'windows';
-    }
-
-    // Update step indicator
-    function updateStepIndicator() {
-      const container = document.getElementById('step-indicator');
-      container.innerHTML = currentFlow.map((step, index) => {
-        let className = 'step-dot';
-        if (index < currentStepIndex) className += ' completed';
-        else if (index === currentStepIndex) className += ' active';
-        return `<div class="${className}"></div>`;
-      }).join('');
-    }
 
     // Client configurations
     const clientConfigs = {
       claude: {
         name: 'Claude Desktop',
+        configFormat: 'json',
         paths: {
           windows: '%APPDATA%\\Claude\\claude_desktop_config.json',
           mac: '~/Library/Application Support/Claude/claude_desktop_config.json',
           linux: '~/.config/Claude/claude_desktop_config.json'
         },
-        config: `{
-  "mcpServers": {
-    "gres-b2b": {
-      "command": "gres-b2b",
-      "args": []
-    }
-  }
-}`,
-        restartCmd: { windows: 'Restart Claude Desktop manually', mac: 'Restart Claude Desktop manually', linux: 'Restart Claude Desktop manually' },
-        testCmd: { windows: 'Ask Claude: "List available MCP tools"', mac: 'Ask Claude: "List available MCP tools"', linux: 'Ask Claude: "List available MCP tools"' },
-        supportsAutoConfig: false
+        configSnippet: {
+          windows: '{"mcpServers":{"gres-b2b":{"command":"gres-b2b","args":[]}}}',
+          mac: '{"mcpServers":{"gres-b2b":{"command":"gres-b2b","args":[]}}}',
+          linux: '{"mcpServers":{"gres-b2b":{"command":"gres-b2b","args":[]}}}'
+        }
       },
       cursor: {
         name: 'Cursor',
+        configFormat: 'json',
         paths: {
           windows: '%APPDATA%\\Cursor\\User\\globalStorage\\cursor.mcp\\settings.json',
           mac: '~/Library/Application Support/Cursor/User/globalStorage/cursor.mcp/settings.json',
           linux: '~/.config/Cursor/User/globalStorage/cursor.mcp/settings.json'
         },
-        config: `{
-  "mcp.servers": {
-    "gres-b2b": {
-      "command": "gres-b2b",
-      "args": []
-    }
-  }
-}`,
-        restartCmd: { windows: 'Restart Cursor manually', mac: 'Restart Cursor manually', linux: 'Restart Cursor manually' },
-        testCmd: { windows: 'Open Cursor chat and ask: "What MCP servers are available?"', mac: 'Open Cursor chat and ask: "What MCP servers are available?"', linux: 'Open Cursor chat and ask: "What MCP servers are available?"' },
-        supportsAutoConfig: false
+        configSnippet: {
+          windows: '{"mcp.servers":{"gres-b2b":{"command":"gres-b2b","args":[]}}}',
+          mac: '{"mcp.servers":{"gres-b2b":{"command":"gres-b2b","args":[]}}}',
+          linux: '{"mcp.servers":{"gres-b2b":{"command":"gres-b2b","args":[]}}}'
+        }
       },
       windsurf: {
         name: 'Windsurf',
+        configFormat: 'json',
         paths: {
           windows: '%APPDATA%\\Windsurf\\settings.json',
           mac: '~/Library/Application Support/Windsurf/settings.json',
           linux: '~/.config/Windsurf/settings.json'
         },
-        config: `{
-  "mcp.servers": {
-    "gres-b2b": {
-      "command": "gres-b2b",
-      "args": []
-    }
-  }
-}`,
-        restartCmd: { windows: 'Restart Windsurf manually', mac: 'Restart Windsurf manually', linux: 'Restart Windsurf manually' },
-        testCmd: { windows: 'Open Windsurf chat and ask: "What MCP servers are available?"', mac: 'Open Windsurf chat and ask: "What MCP servers are available?"', linux: 'Open Windsurf chat and ask: "What MCP servers are available?"' },
-        supportsAutoConfig: false
+        configSnippet: {
+          windows: '{"mcp.servers":{"gres-b2b":{"command":"gres-b2b","args":[]}}}',
+          mac: '{"mcp.servers":{"gres-b2b":{"command":"gres-b2b","args":[]}}}',
+          linux: '{"mcp.servers":{"gres-b2b":{"command":"gres-b2b","args":[]}}}'
+        }
       },
       'vscode-copilot': {
         name: 'VS Code + Copilot',
+        configFormat: 'json',
         paths: {
           windows: '%APPDATA%\\Code\\User\\settings.json',
           mac: '~/Library/Application Support/Code/User/settings.json',
           linux: '~/.config/Code/User/settings.json'
         },
-        config: `{
-  "github.copilot.chat.mcpServers": {
-    "gres-b2b": {
-      "command": "gres-b2b",
-      "args": []
-    }
-  }
-}`,
-        restartCmd: { windows: 'Restart VS Code manually', mac: 'Restart VS Code manually', linux: 'Restart VS Code manually' },
-        testCmd: { windows: 'Open Copilot chat and ask: "What MCP tools are available?"', mac: 'Open Copilot chat and ask: "What MCP tools are available?"', linux: 'Open Copilot chat and ask: "What MCP tools are available?"' },
-        supportsAutoConfig: false
-      },
-      'vscode-codex': {
-        name: 'VS Code + Codex',
-        paths: {
-          windows: '%USERPROFILE%\\.codex\\config.toml',
-          mac: '~/.codex/config.toml',
-          linux: '~/.codex/config.toml'
-        },
-        config: `# Add to your config.toml:
-
-[mcp_servers.gres-b2b]
-command = "gres-b2b"
-args = []`,
-        autoConfigCmd: {
-          windows: (path) => `# Auto-add MCP server to config.toml
-$configPath = "$env:USERPROFILE\\.codex\\config.toml"
-$mcpConfig = @"
-
-[mcp_servers.gres-b2b]
-command = "gres-b2b"
-args = []
-"@
-
-if (!(Test-Path $configPath)) {
-  New-Item -ItemType Directory -Path "$env:USERPROFILE\\.codex" -Force | Out-Null
-  Set-Content $configPath "# Codex CLI settings"
-}
-Add-Content $configPath $mcpConfig
-Write-Host "MCP server added to config.toml"`,
-          mac: (path) => `# Auto-add MCP server to config.toml
-CONFIG_PATH="$HOME/.codex/config.toml"
-mkdir -p "$HOME/.codex"
-cat >> "$CONFIG_PATH" << 'EOF'
-
-[mcp_servers.gres-b2b]
-command = "gres-b2b"
-args = []
-EOF
-echo "MCP server added to config.toml"`,
-          linux: (path) => `# Auto-add MCP server to config.toml
-CONFIG_PATH="$HOME/.codex/config.toml"
-mkdir -p "$HOME/.codex"
-cat >> "$CONFIG_PATH" << 'EOF'
-
-[mcp_servers.gres-b2b]
-command = "gres-b2b"
-args = []
-EOF
-echo "MCP server added to config.toml"`
-        },
-        restartCmd: {
-          windows: 'Close and reopen VS Code, or restart Claude Code extension',
-          mac: 'Close and reopen VS Code, or restart Claude Code extension',
-          linux: 'Close and reopen VS Code, or restart Claude Code extension'
-        },
-        testCmd: {
-          windows: 'In VS Code terminal, run: codex "list your MCP tools"',
-          mac: 'In VS Code terminal, run: codex "list your MCP tools"',
-          linux: 'In VS Code terminal, run: codex "list your MCP tools"'
-        },
-        supportsAutoConfig: true
+        configSnippet: {
+          windows: '{"github.copilot.chat.mcpServers":{"gres-b2b":{"command":"gres-b2b","args":[]}}}',
+          mac: '{"github.copilot.chat.mcpServers":{"gres-b2b":{"command":"gres-b2b","args":[]}}}',
+          linux: '{"github.copilot.chat.mcpServers":{"gres-b2b":{"command":"gres-b2b","args":[]}}}'
+        }
       },
       codex: {
         name: 'Codex CLI',
+        configFormat: 'toml',
         paths: {
           windows: '%USERPROFILE%\\.codex\\config.toml',
           mac: '~/.codex/config.toml',
           linux: '~/.codex/config.toml'
         },
-        config: `# Add to your config.toml:
-
-[mcp_servers.gres-b2b]
-command = "gres-b2b"
-args = []`,
-        autoConfigCmd: {
-          windows: (path) => `# Auto-add MCP server to config.toml
-$configPath = "$env:USERPROFILE\\.codex\\config.toml"
-$mcpConfig = @"
-
-[mcp_servers.gres-b2b]
-command = "gres-b2b"
-args = []
-"@
-
-if (!(Test-Path $configPath)) {
-  New-Item -ItemType Directory -Path "$env:USERPROFILE\\.codex" -Force | Out-Null
-  Set-Content $configPath "# Codex CLI settings"
-}
-Add-Content $configPath $mcpConfig
-Write-Host "MCP server added to config.toml"`,
-          mac: (path) => `# Auto-add MCP server to config.toml
-CONFIG_PATH="$HOME/.codex/config.toml"
-mkdir -p "$HOME/.codex"
-cat >> "$CONFIG_PATH" << 'EOF'
-
-[mcp_servers.gres-b2b]
-command = "gres-b2b"
-args = []
-EOF
-echo "MCP server added to config.toml"`,
-          linux: (path) => `# Auto-add MCP server to config.toml
-CONFIG_PATH="$HOME/.codex/config.toml"
-mkdir -p "$HOME/.codex"
-cat >> "$CONFIG_PATH" << 'EOF'
-
-[mcp_servers.gres-b2b]
-command = "gres-b2b"
-args = []
-EOF
-echo "MCP server added to config.toml"`
-        },
-        restartCmd: {
-          windows: (path) => `# Start Codex in your project folder
-cd "${path || 'your-project-folder'}"
-codex`,
-          mac: (path) => `# Start Codex in your project folder
-cd "${path || 'your-project-folder'}"
-codex`,
-          linux: (path) => `# Start Codex in your project folder
-cd "${path || 'your-project-folder'}"
-codex`
-        },
-        testCmd: {
-          windows: 'codex "list your available MCP tools and servers"',
-          mac: 'codex "list your available MCP tools and servers"',
-          linux: 'codex "list your available MCP tools and servers"'
-        },
-        supportsAutoConfig: true
+        configSnippet: {
+          windows: '[mcp_servers.gres-b2b]\ncommand = "gres-b2b"\nargs = []',
+          mac: '[mcp_servers.gres-b2b]\ncommand = "gres-b2b"\nargs = []',
+          linux: '[mcp_servers.gres-b2b]\ncommand = "gres-b2b"\nargs = []'
+        }
       }
     };
 
-    function selectProjectType(type) {
-      console.log('selectProjectType called with:', type);
-      projectType = type;
-
-      // Only target type-cards in step 1 (with data-type attribute)
-      const step1Cards = document.querySelectorAll('.step[data-step="1"] .type-card');
-      console.log('Found step 1 cards:', step1Cards.length);
-      step1Cards.forEach(card => {
-        card.classList.remove('selected');
-      });
-
-      const selectedCard = document.querySelector('.step[data-step="1"] [data-type="' + type + '"]');
-      console.log('Selected card found:', selectedCard);
-      if (selectedCard) {
-        selectedCard.classList.add('selected');
-      }
-
-      const nextBtn = document.getElementById('step1-next');
-      console.log('Next button found:', nextBtn);
-      if (nextBtn) {
-        nextBtn.disabled = false;
-        console.log('Button disabled set to:', nextBtn.disabled);
-      }
-
-      // Set the flow
-      currentFlow = type === 'new' ? flowNew : flowExisting;
-      updateStepIndicator();
-
-      // Show note for new projects on final step
-      const newProjectNote = document.getElementById('new-project-note');
-      if (newProjectNote) {
-        newProjectNote.style.display = type === 'new' ? 'inline' : 'none';
-      }
+    function detectOS() {
+      const ua = navigator.userAgent;
+      if (ua.indexOf('Win') !== -1) return 'windows';
+      if (ua.indexOf('Mac') !== -1) return 'mac';
+      return 'linux';
     }
 
-    function selectAuthMode(mode) {
-      authMode = mode;
-      // Only target type-cards in step 4a (with data-auth attribute)
-      document.querySelectorAll('.step[data-step="4a"] .type-card').forEach(card => {
-        card.classList.remove('selected');
-      });
-      const selectedCard = document.querySelector(`.step[data-step="4a"] [data-auth="${mode}"]`);
-      if (selectedCard) {
-        selectedCard.classList.add('selected');
-      }
-
-      const nextBtn = document.getElementById('step4a-next');
-      if (nextBtn) {
-        nextBtn.disabled = false;
-      }
-
-      const autoAuthConfig = document.getElementById('auto-auth-config');
-
-      if (mode === 'enabled') {
-        // Show auto-auth configuration
-        if (autoAuthConfig) {
-          autoAuthConfig.style.display = 'block';
-        }
-        generateAuthConfig();
-      } else {
-        if (autoAuthConfig) {
-          autoAuthConfig.style.display = 'none';
-        }
-      }
-    }
-
-    function generateAuthConfig() {
-      const os = projectType === 'new' ?
-        document.getElementById('os-select').value :
-        document.getElementById('os-select-existing').value;
-
-      const terminal = document.getElementById('auth-terminal');
-      const terminalTitle = document.getElementById('auth-terminal-title');
-
-      // Check if Codex-based client
-      const isCodex = selectedClient === 'codex' || selectedClient === 'vscode-codex';
-
-      if (isCodex) {
-        if (os === 'windows') {
-          terminalTitle.textContent = 'PowerShell';
-          // Using string concatenation to avoid backtick issues with PowerShell syntax
-          terminal.innerHTML =
-            '<div class="terminal-line info"># Enable auto-approval for Codex CLI</div>' +
-            '<div class="terminal-line prompt" onclick="copyCommand(this)">$configPath = "$env:USERPROFILE\\.codex\\config.toml"</div>' +
-            '<div class="terminal-line prompt" onclick="copyCommand(this)">$autoConfig = @"\n# Auto-approval settings\nauto_approve = true\nauto_approve_commands = true\nauto_approve_edits = true\n"@</div>' +
-            '<div class="terminal-line prompt" onclick="copyCommand(this)">$content = Get-Content $configPath -Raw -ErrorAction SilentlyContinue</div>' +
-            '<div class="terminal-line prompt" onclick="copyCommand(this)">if ($content -notmatch "auto_approve") { Set-Content $configPath ("$autoConfig`n$content") }</div>' +
-            '<div class="terminal-line prompt" onclick="copyCommand(this)">Write-Host "Auto-approval enabled in config.toml"</div>';
-        } else {
-          terminalTitle.textContent = 'Terminal';
-          terminal.innerHTML =
-            '<div class="terminal-line info"># Enable auto-approval for Codex CLI</div>' +
-            '<div class="terminal-line prompt" onclick="copyCommand(this)">CONFIG_PATH="$HOME/.codex/config.toml"</div>' +
-            '<div class="terminal-line prompt" onclick="copyCommand(this)">mkdir -p "$HOME/.codex"</div>' +
-            '<div class="terminal-line prompt" onclick="copyCommand(this)">grep -q "auto_approve" "$CONFIG_PATH" 2>/dev/null || echo -e "# Auto-approval settings\\nauto_approve = true\\nauto_approve_commands = true\\nauto_approve_edits = true\\n" | cat - "$CONFIG_PATH" 2>/dev/null > /tmp/codex_new.txt && mv /tmp/codex_new.txt "$CONFIG_PATH"</div>' +
-            '<div class="terminal-line prompt" onclick="copyCommand(this)">echo "Auto-approval enabled in config.toml"</div>';
-        }
-      } else {
-        // For non-Codex clients, show general guidance
-        var clientName = (clientConfigs[selectedClient] && clientConfigs[selectedClient].name) || 'your AI client';
-        terminal.innerHTML =
-          '<div class="terminal-line info"># Auto-approval varies by AI client</div>' +
-          '<div class="terminal-line output">For ' + clientName + ':</div>' +
-          '<div class="terminal-line output">Check your AI client settings for auto-approval options.</div>' +
-          '<div class="terminal-line output">Look for: "Trust workspace" or "Auto-approve edits" settings.</div>';
-        terminalTitle.textContent = 'Instructions';
-      }
-    }
-
-    function copyAuthConfig() {
-      const commands = document.querySelectorAll('#auth-terminal .terminal-line.prompt');
-      const text = Array.from(commands).map(c => c.textContent).join('\n');
-      navigator.clipboard.writeText(text).then(() => {
-        alert('Auto-approval config copied! Paste in your terminal to enable.');
-      });
-    }
-
-    function generateInstallCommands() {
-      const os = document.getElementById('os-select').value;
-      const terminal = document.getElementById('install-terminal');
-      const terminalTitle = document.getElementById('terminal-title');
-
-      let commands = [];
-
-      if (os === 'windows') {
-        terminalTitle.textContent = 'PowerShell';
-        commands = [
-          { type: 'info', text: '# Download and install gres-b2b' },
-          { type: 'prompt', text: 'irm https://raw.githubusercontent.com/ajranjith/b2b-governance-action/main/templates/wizard/auto-install.ps1 | iex' },
-          { type: 'output', text: '' },
-          { type: 'info', text: '# Or download manually:' },
-          { type: 'prompt', text: 'Start-Process "https://github.com/ajranjith/b2b-governance-action/releases/latest"' },
-        ];
-      } else {
-        terminalTitle.textContent = 'Terminal';
-        commands = [
-          { type: 'info', text: '# Download and install gres-b2b' },
-          { type: 'prompt', text: 'curl -sL https://raw.githubusercontent.com/ajranjith/b2b-governance-action/main/templates/wizard/auto-install.sh | bash' },
-          { type: 'output', text: '' },
-          { type: 'info', text: '# Verify installation' },
-          { type: 'prompt', text: 'gres-b2b --version' },
-        ];
-      }
-
-      terminal.innerHTML = commands.map(cmd =>
-        `<div class="terminal-line ${cmd.type}" ${cmd.type === 'prompt' ? 'onclick="copyCommand(this)"' : ''}>${cmd.text}</div>`
-      ).join('');
-    }
-
-    function generateScanCommands() {
-      const path = document.getElementById('project-path')?.value || 'your-project-folder';
-      const os = projectType === 'new' ? document.getElementById('os-select').value : document.getElementById('os-select-existing').value;
-      const terminal = document.getElementById('scan-terminal');
-
-      // Check if using Codex CLI
-      const isCodex = selectedClient === 'codex' || selectedClient === 'vscode-codex';
-
-      // Check if it's a GitHub URL
-      if (path.startsWith('https://github.com/')) {
-        const repoName = path.split('/').pop().replace('.git', '');
-
-        if (isCodex) {
-          terminal.innerHTML = `
-            <div class="terminal-line info"># Clone your repository</div>
-            <div class="terminal-line prompt" onclick="copyCommand(this)">git clone ${path}</div>
-            <div class="terminal-line prompt" onclick="copyCommand(this)">cd ${repoName}</div>
-            <div class="terminal-line output"></div>
-            <div class="terminal-line info"># Start Codex in your project folder</div>
-            <div class="terminal-line prompt" onclick="copyCommand(this)">codex</div>
-            <div class="terminal-line output"></div>
-            <div class="terminal-line info"># Then ask Codex:</div>
-            <div class="terminal-line output">"Run a governance scan using gres-b2b and show me the results"</div>
-          `;
-        } else {
-          terminal.innerHTML = `
-            <div class="terminal-line info"># Clone your repository</div>
-            <div class="terminal-line prompt" onclick="copyCommand(this)">git clone ${path}</div>
-            <div class="terminal-line prompt" onclick="copyCommand(this)">cd ${repoName}</div>
-            <div class="terminal-line output"></div>
-            <div class="terminal-line info"># Run governance scan</div>
-            <div class="terminal-line prompt" onclick="copyCommand(this)">gres-b2b --verify</div>
-            <div class="terminal-line output"></div>
-            <div class="terminal-line info"># Open the report</div>
-            <div class="terminal-line prompt" onclick="copyCommand(this)">${os === 'windows' ? 'start' : 'open'} .b2b/report.html</div>
-          `;
-        }
-      } else {
-        if (isCodex) {
-          terminal.innerHTML = `
-            <div class="terminal-line info"># Navigate to your project and start Codex</div>
-            <div class="terminal-line prompt" onclick="copyCommand(this)">cd "${path}"</div>
-            <div class="terminal-line prompt" onclick="copyCommand(this)">codex</div>
-            <div class="terminal-line output"></div>
-            <div class="terminal-line info"># Then ask Codex:</div>
-            <div class="terminal-line output">"Run a governance scan using gres-b2b and show me the results"</div>
-          `;
-        } else {
-          terminal.innerHTML = `
-            <div class="terminal-line info"># Navigate to your project</div>
-            <div class="terminal-line prompt" onclick="copyCommand(this)">cd "${path}"</div>
-            <div class="terminal-line output"></div>
-            <div class="terminal-line info"># Run governance scan</div>
-            <div class="terminal-line prompt" onclick="copyCommand(this)">gres-b2b --verify</div>
-            <div class="terminal-line output"></div>
-            <div class="terminal-line info"># Open the report</div>
-            <div class="terminal-line prompt" onclick="copyCommand(this)">${os === 'windows' ? 'start' : 'open'} .b2b/report.html</div>
-          `;
-        }
-      }
+    function updateStepIndicator() {
+      const container = document.getElementById('step-indicator');
+      container.innerHTML = flow.map((step, index) => {
+        let className = 'step-dot';
+        if (index < currentStepIndex) className += ' completed';
+        else if (index === currentStepIndex) className += ' active';
+        return '<div class="' + className + '"></div>';
+      }).join('');
     }
 
     function selectClient(client) {
       selectedClient = client;
-      document.querySelectorAll('.client-card').forEach(card => {
-        card.classList.remove('selected');
-      });
-      const selectedCard = document.querySelector(`[data-client="${client}"]`);
-      if (selectedCard) {
-        selectedCard.classList.add('selected');
-      }
+      document.querySelectorAll('.client-card').forEach(card => card.classList.remove('selected'));
+      const card = document.querySelector('[data-client="' + client + '"]');
+      if (card) card.classList.add('selected');
+      document.getElementById('step1-next').disabled = false;
+    }
 
-      // Show MCP instructions
-      const mcpInstructions = document.getElementById('mcp-instructions');
-      if (mcpInstructions) {
-        mcpInstructions.style.display = 'block';
-      }
-
-      // Get OS from the appropriate selector
-      const os = projectType === 'new' ?
-        document.getElementById('os-select').value :
-        document.getElementById('os-select-existing').value;
-
-      // Get project path
-      const path = document.getElementById('project-path')?.value || '';
-
-      // Update config path and code
-      const config = clientConfigs[client];
-      document.getElementById('config-path').textContent = config.paths[os];
-      document.getElementById('mcp-config-code').textContent = config.config;
-      document.getElementById('client-name').textContent = config.name;
-
-      // Handle auto-config section
-      const autoConfigSection = document.getElementById('auto-config-section');
-      const manualTitle = document.getElementById('manual-config-title');
-
-      if (config.supportsAutoConfig && config.autoConfigCmd) {
-        autoConfigSection.style.display = 'block';
-        manualTitle.textContent = 'Option B: Manual Configuration';
-
-        // Generate auto-config command
-        const autoConfigTerminal = document.getElementById('auto-config-terminal');
-        const autoCmd = typeof config.autoConfigCmd[os] === 'function'
-          ? config.autoConfigCmd[os](path)
-          : config.autoConfigCmd[os];
-
-        autoConfigTerminal.innerHTML = autoCmd.split('\n').map(line => {
-          if (line.startsWith('#')) {
-            return `<div class="terminal-line info">${line}</div>`;
-          } else if (line.trim()) {
-            return `<div class="terminal-line prompt" onclick="copyCommand(this)">${line}</div>`;
-          }
-          return '';
-        }).join('');
-
-        document.getElementById('auto-config-terminal-title').textContent = os === 'windows' ? 'PowerShell' : 'Terminal';
-      } else {
-        autoConfigSection.style.display = 'none';
-        manualTitle.textContent = 'Manual Configuration';
-      }
-
-      // Handle restart command
-      const restartCommandDiv = document.getElementById('restart-command');
-      const restartInstructions = document.getElementById('restart-instructions');
-
-      if (config.restartCmd) {
-        const restartCmd = typeof config.restartCmd[os] === 'function'
-          ? config.restartCmd[os](path)
-          : config.restartCmd[os];
-
-        if (restartCmd.includes('\n') || restartCmd.startsWith('#') || restartCmd.includes('cd ')) {
-          // Show as terminal command
-          restartCommandDiv.style.display = 'block';
-          restartCommandDiv.innerHTML = `
-            <div class="terminal" style="margin-top: 0.5rem;">
-              <div class="terminal-header">
-                <span class="terminal-dot red"></span>
-                <span class="terminal-dot yellow"></span>
-                <span class="terminal-dot green"></span>
-                <span class="terminal-title">${os === 'windows' ? 'PowerShell' : 'Terminal'}</span>
-              </div>
-              <div class="terminal-body">
-                ${restartCmd.split('\n').map(line => {
-                  if (line.startsWith('#')) {
-                    return `<div class="terminal-line info">${line}</div>`;
-                  } else if (line.trim()) {
-                    return `<div class="terminal-line prompt" onclick="copyCommand(this)">${line}</div>`;
-                  }
-                  return '';
-                }).join('')}
-              </div>
-            </div>
-          `;
-          restartInstructions.innerHTML = `After adding the config, start ${config.name}:`;
-        } else {
-          // Simple text instruction
-          restartCommandDiv.style.display = 'none';
-          restartInstructions.innerHTML = restartCmd;
-        }
-      }
-
-      // Handle test command
-      const testCommandDiv = document.getElementById('test-command');
-      const testStep = document.getElementById('test-step');
-
-      if (config.testCmd) {
-        testStep.style.display = 'flex';
-        const testCmd = typeof config.testCmd[os] === 'function'
-          ? config.testCmd[os](path)
-          : config.testCmd[os];
-
-        if (testCmd.includes('codex ') || testCmd.startsWith('cd ')) {
-          // Show as terminal command
-          testCommandDiv.innerHTML = `
-            <div class="terminal" style="margin-top: 0.5rem;">
-              <div class="terminal-header">
-                <span class="terminal-dot red"></span>
-                <span class="terminal-dot yellow"></span>
-                <span class="terminal-dot green"></span>
-                <span class="terminal-title">${os === 'windows' ? 'PowerShell' : 'Terminal'}</span>
-              </div>
-              <div class="terminal-body">
-                <div class="terminal-line prompt" onclick="copyCommand(this)">${testCmd}</div>
-              </div>
-            </div>
-            <p style="font-size: 0.85rem; margin-top: 0.5rem; color: var(--gray-500);">
-              If gres-b2b is listed in the response, the MCP server is working!
-            </p>
-          `;
-        } else {
-          // Simple text instruction
-          testCommandDiv.innerHTML = `
-            <div class="alert alert-info" style="margin: 0.5rem 0;">
-              ${testCmd}
-            </div>
-            <p style="font-size: 0.85rem; color: var(--gray-500);">
-              If gres-b2b is listed in the response, the MCP server is working!
-            </p>
-          `;
-        }
-      } else {
-        testStep.style.display = 'none';
-      }
-
-      const step4NextBtn = document.getElementById('step4-next');
-      if (step4NextBtn) {
-        step4NextBtn.disabled = false;
+    function updateConfigPath() {
+      selectedOS = document.getElementById('os-select').value;
+      if (selectedClient) {
+        const config = clientConfigs[selectedClient];
+        const defaultPath = config.paths[selectedOS];
+        document.getElementById('default-config-path').textContent = defaultPath;
+        document.getElementById('config-path-input').placeholder = defaultPath;
       }
     }
 
-    function copyCommand(element) {
-      const text = element.textContent.replace(/^[$#]\s*/, '');
-      navigator.clipboard.writeText(text).then(() => {
-        element.style.background = 'rgba(5, 150, 105, 0.3)';
-        setTimeout(() => {
-          element.style.background = '';
-        }, 1000);
-      });
+    function runSetup() {
+      const configInput = document.getElementById('config-path-input').value || clientConfigs[selectedClient].paths[selectedOS];
+      configPath = configInput;
+
+      // Show terminal with setup command
+      document.getElementById('setup-terminal').style.display = 'block';
+      document.getElementById('setup-terminal-title').textContent = selectedOS === 'windows' ? 'PowerShell' : 'Terminal';
+
+      const config = clientConfigs[selectedClient];
+      let command = '';
+
+      if (config.configFormat === 'toml') {
+        if (selectedOS === 'windows') {
+          command = '# Auto-add MCP server to Codex config\n' +
+            '$configPath = "' + configInput.replace(/%USERPROFILE%/g, '$env:USERPROFILE') + '"\n' +
+            'if (!(Test-Path (Split-Path $configPath))) { New-Item -ItemType Directory -Path (Split-Path $configPath) -Force | Out-Null }\n' +
+            'if (!(Test-Path $configPath)) { Set-Content $configPath "# Codex CLI settings" }\n' +
+            'Add-Content $configPath "`n[mcp_servers.gres-b2b]`ncommand = `"gres-b2b`"`nargs = []"\n' +
+            'Write-Host "MCP server added successfully!"';
+        } else {
+          command = '# Auto-add MCP server to Codex config\n' +
+            'CONFIG_PATH="' + configInput.replace(/~/g, '$HOME') + '"\n' +
+            'mkdir -p "$(dirname "$CONFIG_PATH")"\n' +
+            'touch "$CONFIG_PATH"\n' +
+            'echo \'\\n[mcp_servers.gres-b2b]\\ncommand = "gres-b2b"\\nargs = []\' >> "$CONFIG_PATH"\n' +
+            'echo "MCP server added successfully!"';
+        }
+      } else {
+        if (selectedOS === 'windows') {
+          command = '# Auto-add MCP server to ' + config.name + ' config\n' +
+            '$configPath = "' + configInput.replace(/%APPDATA%/g, '$env:APPDATA').replace(/%USERPROFILE%/g, '$env:USERPROFILE') + '"\n' +
+            'if (!(Test-Path (Split-Path $configPath))) { New-Item -ItemType Directory -Path (Split-Path $configPath) -Force | Out-Null }\n' +
+            'if (!(Test-Path $configPath)) { Set-Content $configPath "{}" }\n' +
+            '$json = Get-Content $configPath -Raw | ConvertFrom-Json\n' +
+            '# Add gres-b2b MCP server (merge manually if complex config)\n' +
+            'Write-Host "Config path: $configPath"\n' +
+            'Write-Host "Add this to your config: ' + config.configSnippet[selectedOS].replace(/"/g, '\\"') + '"';
+        } else {
+          command = '# Auto-add MCP server to ' + config.name + ' config\n' +
+            'CONFIG_PATH="' + configInput.replace(/~/g, '$HOME') + '"\n' +
+            'mkdir -p "$(dirname "$CONFIG_PATH")"\n' +
+            'touch "$CONFIG_PATH"\n' +
+            'echo "Config path: $CONFIG_PATH"\n' +
+            'echo "Add this to your config:"\n' +
+            'echo \'' + config.configSnippet[selectedOS] + '\'';
+        }
+      }
+
+      document.getElementById('setup-terminal-body').innerHTML = command.split('\n').map(line => {
+        if (line.startsWith('#')) return '<div class="terminal-line info">' + line + '</div>';
+        if (line.trim()) return '<div class="terminal-line prompt" onclick="copyCommand(this)">' + line + '</div>';
+        return '';
+      }).join('');
+
+      // Update status
+      const statusBox = document.getElementById('setup-status');
+      statusBox.className = 'status-box running';
+      statusBox.innerHTML = '<div class="status-icon">⚙️</div><div class="status-content"><h4>Copy & Run the Command Below</h4><p>Paste in your terminal, then click "Setup Complete"</p></div>';
+
+      // Show continue button
+      document.getElementById('run-setup-btn').style.display = 'none';
+      document.getElementById('step2-next').style.display = 'inline-flex';
     }
 
-    function copyAllCommands() {
-      const commands = document.querySelectorAll('#install-terminal .terminal-line.prompt');
+    function copySetupCommand() {
+      const commands = document.querySelectorAll('#setup-terminal-body .terminal-line.prompt');
       const text = Array.from(commands).map(c => c.textContent).join('\n');
       navigator.clipboard.writeText(text).then(() => {
-        alert('All commands copied!');
+        alert('Command copied! Paste in your terminal and run it.');
       });
     }
 
-    function copyScanCommands() {
+    function detectProjectType() {
+      const path = document.getElementById('project-path').value;
+      const statusBox = document.getElementById('project-status');
+      const cloneTerminal = document.getElementById('clone-terminal');
+      const continueBtn = document.getElementById('step3-next');
+
+      if (path.startsWith('https://github.com/')) {
+        const repoName = path.split('/').pop().replace('.git', '');
+        statusBox.className = 'status-box success';
+        statusBox.innerHTML = '<div class="status-icon">🐙</div><div class="status-content"><h4>GitHub Repository Detected</h4><p>Will clone to: ./' + repoName + '</p></div>';
+
+        cloneTerminal.style.display = 'block';
+        const cmd = selectedOS === 'windows'
+          ? '# Clone repository and create working branch\ngit clone ' + path + '\ncd ' + repoName + '\ngit checkout -b gres-b2b-fixes/' + Date.now()
+          : '# Clone repository and create working branch\ngit clone ' + path + '\ncd ' + repoName + '\ngit checkout -b gres-b2b-fixes/$(date +%s)';
+
+        document.getElementById('clone-terminal-body').innerHTML = cmd.split('\n').map(line => {
+          if (line.startsWith('#')) return '<div class="terminal-line info">' + line + '</div>';
+          return '<div class="terminal-line prompt" onclick="copyCommand(this)">' + line + '</div>';
+        }).join('');
+
+        continueBtn.disabled = false;
+        projectPath = './' + repoName;
+      } else if (path.length > 3) {
+        statusBox.className = 'status-box success';
+        statusBox.innerHTML = '<div class="status-icon">📁</div><div class="status-content"><h4>Local Folder</h4><p>Will create backup branch in: ' + path + '</p></div>';
+
+        cloneTerminal.style.display = 'block';
+        const cmd = selectedOS === 'windows'
+          ? '# Navigate to project and create backup branch\ncd "' + path + '"\ngit checkout -b gres-b2b-fixes/' + Date.now()
+          : '# Navigate to project and create backup branch\ncd "' + path + '"\ngit checkout -b gres-b2b-fixes/$(date +%s)';
+
+        document.getElementById('clone-terminal-body').innerHTML = cmd.split('\n').map(line => {
+          if (line.startsWith('#')) return '<div class="terminal-line info">' + line + '</div>';
+          return '<div class="terminal-line prompt" onclick="copyCommand(this)">' + line + '</div>';
+        }).join('');
+
+        continueBtn.disabled = false;
+        projectPath = path;
+      } else {
+        statusBox.className = 'status-box pending';
+        statusBox.innerHTML = '<div class="status-icon">📁</div><div class="status-content"><h4>Enter Project Location</h4><p>Paste a GitHub URL or local folder path above</p></div>';
+        cloneTerminal.style.display = 'none';
+        continueBtn.disabled = true;
+      }
+    }
+
+    function copyCloneCommand() {
+      const commands = document.querySelectorAll('#clone-terminal-body .terminal-line.prompt');
+      const text = Array.from(commands).map(c => c.textContent).join('\n');
+      navigator.clipboard.writeText(text).then(() => {
+        alert('Commands copied! Paste in your terminal.');
+      });
+    }
+
+    function generateScanCommands() {
+      const terminal = document.getElementById('scan-terminal');
+      const path = projectPath || 'your-project';
+
+      const cmd = selectedOS === 'windows'
+        ? '# Run governance scan\ngres-b2b --verify\n\n# Open results\nstart .b2b/report.html'
+        : '# Run governance scan\ngres-b2b --verify\n\n# Open results\nopen .b2b/report.html';
+
+      terminal.innerHTML = cmd.split('\n').map(line => {
+        if (line.startsWith('#')) return '<div class="terminal-line info">' + line + '</div>';
+        if (line.trim()) return '<div class="terminal-line prompt" onclick="copyCommand(this)">' + line + '</div>';
+        return '<div class="terminal-line output"></div>';
+      }).join('');
+    }
+
+    function copyScanCommand() {
       const commands = document.querySelectorAll('#scan-terminal .terminal-line.prompt');
       const text = Array.from(commands).map(c => c.textContent).join('\n');
       navigator.clipboard.writeText(text).then(() => {
-        alert('Commands copied!');
+        alert('Scan commands copied!');
       });
     }
 
-    function copyPrompt(element) {
+    function openReport() {
+      alert('After running the scan, open .b2b/report.html in your browser to see results.');
+    }
+
+    function generateAutoFixPrompt() {
+      const prompt = `You are an AI assistant helping fix governance issues in a B2B eCommerce project.
+
+INSTRUCTIONS:
+1. First, run: gres-b2b --verify
+2. Read the results from .b2b/report.json
+3. For each RED issue:
+   - Understand the violation
+   - Fix it following GRES B2B patterns
+   - Re-run scan to verify fix
+4. For each AMBER issue:
+   - Understand the warning
+   - Fix it following best practices
+   - Re-run scan to verify fix
+5. REPEAT steps 1-4 until ALL results are GREEN
+6. Generate .b2b/comparison.html showing before/after
+7. Log timing to .b2b/rebuild.log
+
+IMPORTANT:
+- Create all changes in the current branch (gres-b2b-fixes/*)
+- Never modify the main/master branch directly
+- After each fix, re-scan to confirm improvement
+- Keep fixing until ZERO RED and ZERO AMBER
+
+START NOW: Run the initial governance scan.`;
+
+      document.getElementById('auto-fix-prompt').textContent = prompt;
+    }
+
+    function copyAutoFixPrompt() {
+      const prompt = document.getElementById('auto-fix-prompt').textContent;
+      navigator.clipboard.writeText(prompt).then(() => {
+        alert('Auto-fix prompt copied! Paste this to your AI agent.');
+      });
+    }
+
+    function copyCommand(element) {
       const text = element.textContent;
       navigator.clipboard.writeText(text).then(() => {
-        element.style.background = '#d1fae5';
-        setTimeout(() => {
-          element.style.background = '';
-        }, 1000);
-      });
-    }
-
-    function copyCode(btn) {
-      const codeBlock = btn.parentElement.querySelector('code');
-      navigator.clipboard.writeText(codeBlock.textContent).then(() => {
-        btn.textContent = 'Copied!';
-        btn.classList.add('copied');
-        setTimeout(() => {
-          btn.textContent = 'Copy';
-          btn.classList.remove('copied');
-        }, 2000);
-      });
-    }
-
-    function copyAutoConfig() {
-      const commands = document.querySelectorAll('#auto-config-terminal .terminal-line.prompt');
-      const text = Array.from(commands).map(c => c.textContent).join('\n');
-      navigator.clipboard.writeText(text).then(() => {
-        alert('Auto-config command copied! Paste in your terminal to run.');
+        element.style.background = 'rgba(5, 150, 105, 0.3)';
+        setTimeout(() => element.style.background = '', 1000);
       });
     }
 
     function nextStep() {
-      const currentStepId = currentFlow[currentStepIndex];
-
-      // Handle step-specific logic before moving
-      if (currentStepId === '2a') {
-        projectPath = document.getElementById('project-path').value;
-        selectedOS = document.getElementById('os-select').value;
-        generateInstallCommands();
+      // Pre-step actions
+      if (currentStepIndex === 0) {
+        updateConfigPath();
       }
-      if (currentStepId === '2b') {
-        selectedOS = document.getElementById('os-select-existing').value;
-      }
-      if (currentStepId === '4') {
-        // Reset auth mode selection when entering step 4a
-        authMode = null;
-        document.querySelectorAll('.step[data-step="4a"] .type-card').forEach(card => {
-          card.classList.remove('selected');
-        });
-        const step4aNextBtn = document.getElementById('step4a-next');
-        if (step4aNextBtn) {
-          step4aNextBtn.disabled = true;
-        }
-        const autoAuthConfig = document.getElementById('auto-auth-config');
-        if (autoAuthConfig) {
-          autoAuthConfig.style.display = 'none';
-        }
-      }
-      if (currentStepId === '4a') {
+      if (currentStepIndex === 2) {
         generateScanCommands();
+      }
+      if (currentStepIndex === 3) {
+        generateAutoFixPrompt();
       }
 
       currentStepIndex++;
-      goToStep(currentFlow[currentStepIndex]);
+      goToStep(flow[currentStepIndex]);
     }
 
     function prevStep() {
       currentStepIndex--;
-      goToStep(currentFlow[currentStepIndex]);
+      goToStep(flow[currentStepIndex]);
     }
 
     function goToStep(stepId) {
-      // Hide all steps
       document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
-      // Show target step
-      document.querySelector(`.step[data-step="${stepId}"]`).classList.add('active');
-      // Update indicator
+      document.querySelector('.step[data-step="' + stepId + '"]').classList.add('active');
       updateStepIndicator();
     }
 
     // Initialize
     document.addEventListener('DOMContentLoaded', () => {
-      const detectedOS = detectOS();
-      document.getElementById('os-select').value = detectedOS;
-      document.getElementById('os-select-existing').value = detectedOS;
-      selectedOS = detectedOS;
+      selectedOS = detectOS();
+      document.getElementById('os-select').value = selectedOS;
       updateStepIndicator();
     });
   </script>
