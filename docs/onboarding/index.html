@@ -466,6 +466,10 @@
             <div class="icon">💻</div>
             <div class="name">VS Code + Copilot</div>
           </div>
+          <div class="client-card" data-client="vscode-codex" onclick="selectClient('vscode-codex')">
+            <div class="icon">🔷</div>
+            <div class="name">VS Code + Codex</div>
+          </div>
           <div class="client-card" data-client="codex" onclick="selectClient('codex')">
             <div class="icon">🔮</div>
             <div class="name">Codex CLI</div>
@@ -813,6 +817,17 @@
         },
         testPrompt: 'What MCP servers are configured?',
         expectedResponse: 'Should show "gres-b2b" in MCP configuration'
+      },
+      'vscode-codex': {
+        name: 'VS Code + Codex',
+        configFormat: 'toml',
+        paths: {
+          windows: '%USERPROFILE%\\.codex\\config.toml',
+          mac: '~/.codex/config.toml',
+          linux: '~/.codex/config.toml'
+        },
+        testPrompt: 'List your available MCP tools and confirm gres-b2b is connected.',
+        expectedResponse: 'Should show "gres-b2b" with tools like scan, doctor, verify'
       },
       codex: {
         name: 'Codex CLI',
