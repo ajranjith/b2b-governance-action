@@ -293,14 +293,16 @@ Exit code `1` gates the CI pipeline on failure.
 
 For local development with AI assistants, you have several options:
 
-| Option | Best For |
-|--------|----------|
-| **Setup Wizard** | Non-coders / Managers |
-| **Copy/Paste Setup** | Standard Developers |
-| **CLI Native** | Power Users / CI/CD |
-| **Dev Container** | Enterprise Teams |
+| Option | Best For | |
+|--------|----------|---|
+| **Setup Wizard** | Non-coders / Managers | [Open →](https://ajranjith.github.io/b2b-governance-action/onboarding/) |
+| **Copy/Paste Setup** | Standard Developers | [Download →](https://github.com/ajranjith/b2b-governance-action/releases) |
+| **CLI Native** | Power Users / CI/CD | [Releases →](https://github.com/ajranjith/b2b-governance-action/releases) |
+| **Dev Container** | Enterprise Teams | [Codespaces →](https://github.com/codespaces/new?repo=ajranjith/b2b-governance-action) |
 
 ### Option 1 — Setup Wizard
+
+[**Launch Wizard →**](https://ajranjith.github.io/b2b-governance-action/onboarding/)
 
 1. Download the release for your OS
 2. Move it to a stable folder (e.g., `C:\Tools\...` or `~/tools/...`)
@@ -311,6 +313,8 @@ For local development with AI assistants, you have several options:
 
 ### Option 2 — Copy/Paste Setup
 
+[**Download Release →**](https://github.com/ajranjith/b2b-governance-action/releases)
+
 1. Place the tool in a stable folder
 2. Open your AI client settings → **Tools / MCP Servers**
 3. Add **gres-b2b** and point it to the tool path
@@ -320,6 +324,8 @@ For local development with AI assistants, you have several options:
 
 ### Option 3 — CLI Native
 
+[**View Releases →**](https://github.com/ajranjith/b2b-governance-action/releases)
+
 1. Build from source (or use the binary)
 2. Run scans in CI on PRs
 3. Upload `.b2b/report.html` as an artifact for reviewers
@@ -327,6 +333,8 @@ For local development with AI assistants, you have several options:
 ✅ Consistent enforcement across the whole team
 
 ### Option 4 — Dev Container
+
+[**Open in Codespaces →**](https://github.com/codespaces/new?repo=ajranjith/b2b-governance-action)
 
 1. Add a `.devcontainer/` that includes the tool + env + defaults
 2. User clicks "Reopen in Container"
