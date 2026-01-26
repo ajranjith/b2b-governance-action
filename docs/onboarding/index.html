@@ -1206,42 +1206,31 @@ codex`
       if (isCodex) {
         if (os === 'windows') {
           terminalTitle.textContent = 'PowerShell';
-          terminal.innerHTML = `
-            <div class="terminal-line info"># Enable auto-approval for Codex CLI</div>
-            <div class="terminal-line prompt" onclick="copyCommand(this)">$configPath = "$env:USERPROFILE\\.codex\\config.toml"</div>
-            <div class="terminal-line prompt" onclick="copyCommand(this)">$autoConfig = @"
-# Auto-approval settings for AI-driven rebuilds
-auto_approve = true
-auto_approve_commands = true
-auto_approve_edits = true
-"@</div>
-            <div class="terminal-line prompt" onclick="copyCommand(this)">$content = Get-Content $configPath -Raw</div>
-            <div class="terminal-line prompt" onclick="copyCommand(this)">if ($content -notmatch 'auto_approve') { Set-Content $configPath ($autoConfig + "`n" + $content) }</div>
-            <div class="terminal-line prompt" onclick="copyCommand(this)">Write-Host "Auto-approval enabled in config.toml"</div>
-          `;
+          // Using string concatenation to avoid backtick issues with PowerShell syntax
+          terminal.innerHTML =
+            '<div class="terminal-line info"># Enable auto-approval for Codex CLI</div>' +
+            '<div class="terminal-line prompt" onclick="copyCommand(this)">$configPath = "$env:USERPROFILE\\.codex\\config.toml"</div>' +
+            '<div class="terminal-line prompt" onclick="copyCommand(this)">$autoConfig = @"\n# Auto-approval settings\nauto_approve = true\nauto_approve_commands = true\nauto_approve_edits = true\n"@</div>' +
+            '<div class="terminal-line prompt" onclick="copyCommand(this)">$content = Get-Content $configPath -Raw -ErrorAction SilentlyContinue</div>' +
+            '<div class="terminal-line prompt" onclick="copyCommand(this)">if ($content -notmatch "auto_approve") { Set-Content $configPath ("$autoConfig`n$content") }</div>' +
+            '<div class="terminal-line prompt" onclick="copyCommand(this)">Write-Host "Auto-approval enabled in config.toml"</div>';
         } else {
           terminalTitle.textContent = 'Terminal';
-          terminal.innerHTML = `
-            <div class="terminal-line info"># Enable auto-approval for Codex CLI</div>
-            <div class="terminal-line prompt" onclick="copyCommand(this)">CONFIG_PATH="$HOME/.codex/config.toml"</div>
-            <div class="terminal-line prompt" onclick="copyCommand(this)">cat > /tmp/codex_auto.txt << 'EOF'
-# Auto-approval settings for AI-driven rebuilds
-auto_approve = true
-auto_approve_commands = true
-auto_approve_edits = true
-EOF</div>
-            <div class="terminal-line prompt" onclick="copyCommand(this)">if ! grep -q "auto_approve" "$CONFIG_PATH" 2>/dev/null; then cat /tmp/codex_auto.txt "$CONFIG_PATH" > /tmp/codex_new.txt && mv /tmp/codex_new.txt "$CONFIG_PATH"; fi</div>
-            <div class="terminal-line prompt" onclick="copyCommand(this)">echo "Auto-approval enabled in config.toml"</div>
-          `;
+          terminal.innerHTML =
+            '<div class="terminal-line info"># Enable auto-approval for Codex CLI</div>' +
+            '<div class="terminal-line prompt" onclick="copyCommand(this)">CONFIG_PATH="$HOME/.codex/config.toml"</div>' +
+            '<div class="terminal-line prompt" onclick="copyCommand(this)">mkdir -p "$HOME/.codex"</div>' +
+            '<div class="terminal-line prompt" onclick="copyCommand(this)">grep -q "auto_approve" "$CONFIG_PATH" 2>/dev/null || echo -e "# Auto-approval settings\\nauto_approve = true\\nauto_approve_commands = true\\nauto_approve_edits = true\\n" | cat - "$CONFIG_PATH" 2>/dev/null > /tmp/codex_new.txt && mv /tmp/codex_new.txt "$CONFIG_PATH"</div>' +
+            '<div class="terminal-line prompt" onclick="copyCommand(this)">echo "Auto-approval enabled in config.toml"</div>';
         }
       } else {
         // For non-Codex clients, show general guidance
-        terminal.innerHTML = `
-          <div class="terminal-line info"># Auto-approval varies by AI client</div>
-          <div class="terminal-line output">For ${clientConfigs[selectedClient]?.name || 'your AI client'}:</div>
-          <div class="terminal-line output">Check your AI client's settings for auto-approval options.</div>
-          <div class="terminal-line output">Look for: "Trust workspace" or "Auto-approve edits" settings.</div>
-        `;
+        var clientName = (clientConfigs[selectedClient] && clientConfigs[selectedClient].name) || 'your AI client';
+        terminal.innerHTML =
+          '<div class="terminal-line info"># Auto-approval varies by AI client</div>' +
+          '<div class="terminal-line output">For ' + clientName + ':</div>' +
+          '<div class="terminal-line output">Check your AI client settings for auto-approval options.</div>' +
+          '<div class="terminal-line output">Look for: "Trust workspace" or "Auto-approve edits" settings.</div>';
         terminalTitle.textContent = 'Instructions';
       }
     }
