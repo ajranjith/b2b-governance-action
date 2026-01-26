@@ -1479,7 +1479,10 @@ EOF</div>
         testStep.style.display = 'none';
       }
 
-      document.getElementById('step4-next').disabled = false;
+      const step4NextBtn = document.getElementById('step4-next');
+      if (step4NextBtn) {
+        step4NextBtn.disabled = false;
+      }
     }
 
     function copyCommand(element) {
@@ -1556,8 +1559,14 @@ EOF</div>
         document.querySelectorAll('.step[data-step="4a"] .type-card').forEach(card => {
           card.classList.remove('selected');
         });
-        document.getElementById('step4a-next').disabled = true;
-        document.getElementById('auto-auth-config').style.display = 'none';
+        const step4aNextBtn = document.getElementById('step4a-next');
+        if (step4aNextBtn) {
+          step4aNextBtn.disabled = true;
+        }
+        const autoAuthConfig = document.getElementById('auto-auth-config');
+        if (autoAuthConfig) {
+          autoAuthConfig.style.display = 'none';
+        }
       }
       if (currentStepId === '4a') {
         generateScanCommands();
