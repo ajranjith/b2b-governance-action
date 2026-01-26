@@ -1,28 +1,41 @@
 #!/usr/bin/env bash
 # GRES B2B Governance Action - Install and Run Script
-# Downloads release binary, verifies checksum, and runs with provided args
+# Downloads release binary, verifies checksum, composes args from inputs, and runs
 set -euo pipefail
 
+# ============================================================================
+# Configuration from environment (set by action.yml)
+# ============================================================================
 REPO="${GRES_B2B_REPO}"
 VERSION="${GRES_B2B_VERSION}"
-ARGS="${GRES_B2B_ARGS}"
+MODE="${GRES_B2B_MODE:-verify}"
+CONFIG="${GRES_B2B_CONFIG:-}"
+FAIL_ON_RED="${GRES_B2B_FAIL_ON_RED:-false}"
+ALLOW_AMBER="${GRES_B2B_ALLOW_AMBER:-true}"
+SARIF="${GRES_B2B_SARIF:-.b2b/report.sarif.json}"
+JUNIT="${GRES_B2B_JUNIT:-.b2b/report.junit.xml}"
 
-# Map GitHub runner OS/arch to GoReleaser naming
+# ============================================================================
+# Platform detection
+# ============================================================================
 case "${RUNNER_OS}" in
   Linux)   OS="linux" ;;
   Windows) OS="windows" ;;
   macOS)   OS="darwin" ;;
-  *) echo "Unsupported OS: ${RUNNER_OS}" >&2; exit 2 ;;
+  *) echo "::error::Unsupported OS: ${RUNNER_OS}"; exit 2 ;;
 esac
 
 case "${RUNNER_ARCH}" in
   X64)   ARCH="amd64" ;;
   ARM64) ARCH="arm64" ;;
-  *) echo "Unsupported arch: ${RUNNER_ARCH}" >&2; exit 2 ;;
+  *) echo "::error::Unsupported arch: ${RUNNER_ARCH}"; exit 2 ;;
 esac
 
 ASSET="gres-b2b_${OS}_${ARCH}.zip"
 
+# ============================================================================
+# Download release
+# ============================================================================
 WORKDIR="$(mktemp -d)"
 cd "$WORKDIR"
 
@@ -44,7 +57,10 @@ fi
 
 echo "::endgroup::"
 
-echo "::group::Verify checksum"
+# ============================================================================
+# Verify checksum
+# ============================================================================
+echo "::group::Verify SHA256 checksum"
 
 expected="$(grep " ${ASSET}\$" checksums.txt | awk '{print $1}' || true)"
 if [[ -z "${expected}" ]]; then
@@ -74,6 +90,9 @@ fi
 echo "Checksum verified: ${expected}"
 echo "::endgroup::"
 
+# ============================================================================
+# Extract binary
+# ============================================================================
 echo "::group::Extract binary"
 
 if command -v unzip >/dev/null 2>&1; then
@@ -106,12 +125,70 @@ fi
 echo "Binary ready: ${BIN}"
 echo "::endgroup::"
 
-echo "::group::Run gres-b2b ${ARGS}"
+# ============================================================================
+# Compose command arguments
+# ============================================================================
+echo "::group::Compose command"
 
-# Return to original directory for file operations
-cd "${GITHUB_WORKSPACE:-$(pwd)}"
+ARGS=()
 
-# shellcheck disable=SC2086
-"${WORKDIR}/${BIN}" ${ARGS}
+# Mode flag
+case "${MODE}" in
+  verify) ARGS+=("--verify") ;;
+  watch)  ARGS+=("--watch") ;;
+  shadow) ARGS+=("--shadow") ;;
+  *)
+    echo "::error::Invalid mode: ${MODE}. Must be verify, watch, or shadow."
+    exit 7
+    ;;
+esac
+
+# Config file
+if [[ -n "${CONFIG}" ]]; then
+  ARGS+=("--config" "${CONFIG}")
+fi
+
+# Strictness flags
+if [[ "${FAIL_ON_RED}" == "true" ]]; then
+  ARGS+=("--fail-on-red")
+fi
+
+if [[ "${ALLOW_AMBER}" == "false" ]]; then
+  ARGS+=("--allow-amber=false")
+fi
+
+# Print resolved command (safe for logs - no secrets)
+echo "Mode:         ${MODE}"
+echo "Config:       ${CONFIG:-<default>}"
+echo "Fail on RED:  ${FAIL_ON_RED}"
+echo "Allow AMBER:  ${ALLOW_AMBER}"
+echo "SARIF output: ${SARIF}"
+echo "JUnit output: ${JUNIT}"
+echo ""
+echo "Resolved command: gres-b2b ${ARGS[*]}"
 
 echo "::endgroup::"
+
+# ============================================================================
+# Run gres-b2b
+# ============================================================================
+echo "::group::Run gres-b2b"
+
+# Return to workspace for file operations
+cd "${GITHUB_WORKSPACE:-$(pwd)}"
+
+# Execute
+"${WORKDIR}/${BIN}" "${ARGS[@]}"
+
+echo "::endgroup::"
+
+# ============================================================================
+# Summary
+# ============================================================================
+echo ""
+echo "Outputs:"
+echo "  Certificate: .b2b/certificate.json"
+echo "  SARIF:       ${SARIF}"
+echo "  JUnit:       ${JUNIT}"
+echo "  Report:      .b2b/report.json"
+echo "  Dashboard:   .b2b/report.html"

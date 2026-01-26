@@ -1,5 +1,5 @@
 name: "GRES B2B Governance"
-description: "Runs GRES B2B governance verify/watch/shadow by downloading official release binaries."
+description: "Run GRES B2B governance verification with cap-aware threshold gating. Free to use - no license key required."
 author: "GRES Digital"
 
 branding:
@@ -7,31 +7,86 @@ branding:
   color: "blue"
 
 inputs:
-  version:
-    description: "Release tag to install from gres-digital/b2b-governance-mcp (e.g. v4.0.0). Use 'latest' for newest release."
+  # === Mode ===
+  mode:
+    description: "Operation mode: verify | watch | shadow"
     required: false
-    default: "latest"
-  args:
-    description: "Arguments to pass to gres-b2b (e.g. --verify --config .b2b/policy.yml --sarif out.sarif --junit out.xml)."
-    required: false
-    default: "--verify"
-  repo:
-    description: "Repo hosting gres-b2b releases (owner/name)."
-    required: false
-    default: "gres-digital/b2b-governance-mcp"
-  token:
-    description: "GitHub token for downloading releases (use secrets.GITHUB_TOKEN for private repos)."
+    default: "verify"
+
+  # === Configuration ===
+  config:
+    description: "Path to custom config file (e.g. .b2b/policy.yml)"
     required: false
     default: ""
+
+  # === Strictness ===
+  fail_on_red:
+    description: "Fail immediately on any RED violation (sets max_red=0)"
+    required: false
+    default: "false"
+
+  allow_amber:
+    description: "Allow AMBER warnings without failing (set to false to fail on any AMBER)"
+    required: false
+    default: "true"
+
+  # === Output paths ===
+  sarif:
+    description: "Path for SARIF output file"
+    required: false
+    default: ".b2b/report.sarif.json"
+
+  junit:
+    description: "Path for JUnit XML output file"
+    required: false
+    default: ".b2b/report.junit.xml"
+
+  # === Release settings ===
+  version:
+    description: "Release tag to install (e.g. v4.0.0). Use 'latest' for newest release."
+    required: false
+    default: "latest"
+
+  repo:
+    description: "Repository hosting gres-b2b releases (owner/name)"
+    required: false
+    default: "gres-digital/b2b-governance-mcp"
+
+  token:
+    description: "GitHub token for downloading releases (use secrets.GITHUB_TOKEN for private repos)"
+    required: false
+    default: ""
+
+outputs:
+  certificate:
+    description: "Path to verification certificate"
+    value: ".b2b/certificate.json"
+  sarif:
+    description: "Path to SARIF report"
+    value: ${{ inputs.sarif }}
+  junit:
+    description: "Path to JUnit report"
+    value: ${{ inputs.junit }}
+  report:
+    description: "Path to JSON report"
+    value: ".b2b/report.json"
+  html:
+    description: "Path to HTML dashboard"
+    value: ".b2b/report.html"
 
 runs:
   using: "composite"
   steps:
-    - name: Install + run gres-b2b
+    - name: Install and run gres-b2b
       shell: bash
       env:
+        GRES_B2B_MODE: ${{ inputs.mode }}
+        GRES_B2B_CONFIG: ${{ inputs.config }}
+        GRES_B2B_FAIL_ON_RED: ${{ inputs.fail_on_red }}
+        GRES_B2B_ALLOW_AMBER: ${{ inputs.allow_amber }}
+        GRES_B2B_SARIF: ${{ inputs.sarif }}
+        GRES_B2B_JUNIT: ${{ inputs.junit }}
         GRES_B2B_VERSION: ${{ inputs.version }}
-        GRES_B2B_ARGS: ${{ inputs.args }}
         GRES_B2B_REPO: ${{ inputs.repo }}
         GITHUB_TOKEN: ${{ inputs.token }}
       run: |
