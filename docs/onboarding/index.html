@@ -88,6 +88,44 @@
     h3 { font-size: 1.1rem; color: var(--gray-700); margin-bottom: 0.75rem; }
     p { color: var(--gray-600); line-height: 1.6; margin-bottom: 1rem; }
 
+    /* Project type cards */
+    .type-cards {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1.5rem;
+      margin: 2rem 0;
+    }
+
+    .type-card {
+      border: 3px solid var(--gray-200);
+      border-radius: 16px;
+      padding: 2rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-align: center;
+      position: relative;
+    }
+
+    .type-card:hover { border-color: var(--primary); transform: translateY(-2px); }
+    .type-card.selected { border-color: var(--primary); background: rgba(37, 99, 235, 0.05); }
+
+    .type-card .icon { font-size: 3rem; margin-bottom: 1rem; }
+    .type-card h3 { color: var(--gray-800); margin-bottom: 0.5rem; }
+    .type-card p { font-size: 0.9rem; color: var(--gray-500); margin-bottom: 0; }
+
+    .type-card.recommended::after {
+      content: 'Recommended';
+      position: absolute;
+      top: -12px;
+      right: 20px;
+      background: var(--success);
+      color: white;
+      padding: 0.3rem 0.8rem;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+
     .input-group {
       margin: 1.5rem 0;
     }
@@ -163,17 +201,25 @@
       font-size: 0.9rem;
       line-height: 1.6;
       margin-bottom: 0.25rem;
+      cursor: pointer;
+      padding: 2px 4px;
+      border-radius: 4px;
+      transition: background 0.2s;
     }
+
+    .terminal-line:hover { background: rgba(255,255,255,0.1); }
 
     .terminal-line.prompt::before {
       content: '$ ';
       color: var(--success);
     }
 
-    .terminal-line.output { color: var(--gray-400); }
+    .terminal-line.output { color: var(--gray-400); cursor: default; }
+    .terminal-line.output:hover { background: transparent; }
     .terminal-line.success { color: var(--success); }
     .terminal-line.error { color: var(--danger); }
-    .terminal-line.info { color: #60a5fa; }
+    .terminal-line.info { color: #60a5fa; cursor: default; }
+    .terminal-line.info:hover { background: transparent; }
 
     .terminal-actions {
       background: #2d2d2d;
@@ -197,12 +243,11 @@
     .terminal-btn:hover { background: var(--gray-600); }
     .terminal-btn.primary { background: var(--primary); }
     .terminal-btn.primary:hover { background: var(--primary-dark); }
-    .terminal-btn.success { background: var(--success); }
 
     /* Client cards */
     .client-cards {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
       gap: 1rem;
       margin: 1.5rem 0;
     }
@@ -220,8 +265,7 @@
     .client-card.selected { border-color: var(--primary); background: rgba(37, 99, 235, 0.05); }
 
     .client-card .icon { font-size: 2rem; margin-bottom: 0.5rem; }
-    .client-card .name { font-weight: 600; color: var(--gray-800); }
-    .client-card .desc { font-size: 0.8rem; color: var(--gray-500); margin-top: 0.25rem; }
+    .client-card .name { font-weight: 600; color: var(--gray-800); font-size: 0.9rem; }
 
     /* MCP Steps */
     .mcp-steps {
@@ -362,6 +406,7 @@
 
     .btn-primary { background: var(--primary); color: white; }
     .btn-primary:hover { background: var(--primary-dark); }
+    .btn-primary:disabled { background: var(--gray-300); cursor: not-allowed; }
     .btn-secondary { background: white; color: var(--gray-700); border: 2px solid var(--gray-300); }
     .btn-secondary:hover { border-color: var(--gray-400); background: var(--gray-50); }
     .btn-success { background: var(--success); color: white; }
@@ -401,6 +446,7 @@
       .wizard-content { padding: 1.5rem; }
       .button-group { flex-direction: column; }
       .btn { width: 100%; }
+      .type-cards { grid-template-columns: 1fr; }
       .client-cards { grid-template-columns: 1fr 1fr; }
     }
   </style>
@@ -414,22 +460,42 @@
     </div>
 
     <div class="wizard-content">
-      <div class="step-indicator">
-        <div class="step-dot active" data-step="1"></div>
-        <div class="step-dot" data-step="2"></div>
-        <div class="step-dot" data-step="3"></div>
-        <div class="step-dot" data-step="4"></div>
-        <div class="step-dot" data-step="5"></div>
+      <div class="step-indicator" id="step-indicator">
+        <!-- Dots will be updated dynamically -->
       </div>
 
-      <!-- Step 1: Project Path -->
+      <!-- Step 1: New or Existing Project -->
       <div class="step active" data-step="1">
-        <h2>Step 1: Your Project</h2>
-        <p>Enter your B2B eCommerce project location. The wizard will generate all commands for you.</p>
+        <h2>Welcome! What would you like to do?</h2>
+        <p>Choose how you want to set up GRES B2B Governance for your project.</p>
+
+        <div class="type-cards">
+          <div class="type-card" data-type="new" onclick="selectProjectType('new')">
+            <div class="icon">🆕</div>
+            <h3>New Project</h3>
+            <p>I'm starting fresh and want to add governance to a new or existing codebase</p>
+          </div>
+
+          <div class="type-card recommended" data-type="existing" onclick="selectProjectType('existing')">
+            <div class="icon">📁</div>
+            <h3>Existing Setup</h3>
+            <p>I already have gres-b2b installed and want to connect it to my AI agent</p>
+          </div>
+        </div>
+
+        <div class="button-group">
+          <button class="btn btn-primary" onclick="nextStep()" id="step1-next" disabled>Continue</button>
+        </div>
+      </div>
+
+      <!-- Step 2a: New Project - Enter Path -->
+      <div class="step" data-step="2a">
+        <h2>Where is your project?</h2>
+        <p>Enter your B2B eCommerce project location. You can use a local folder or clone from GitHub.</p>
 
         <div class="input-group">
           <label>Project Location</label>
-          <input type="text" id="project-path" placeholder="C:\Projects\my-b2b-app or https://github.com/user/repo" />
+          <input type="text" id="project-path" placeholder="C:\Projects\my-b2b-app  or  https://github.com/user/repo" />
           <p class="hint">Paste your local folder path or GitHub repository URL</p>
         </div>
 
@@ -443,14 +509,39 @@
         </div>
 
         <div class="button-group">
+          <button class="btn btn-secondary" onclick="prevStep()">Back</button>
           <button class="btn btn-primary" onclick="nextStep()">Continue</button>
         </div>
       </div>
 
-      <!-- Step 2: Install Tool -->
-      <div class="step" data-step="2">
-        <h2>Step 2: Install GRES B2B Tool</h2>
-        <p>Run these commands in your terminal. Click each command to copy it.</p>
+      <!-- Step 2b: Existing Project - Just select OS -->
+      <div class="step" data-step="2b">
+        <h2>Let's connect your AI agent</h2>
+        <p>Since you already have gres-b2b installed, we'll skip straight to connecting your AI coding assistant.</p>
+
+        <div class="input-group">
+          <label>Your Operating System</label>
+          <select id="os-select-existing">
+            <option value="windows">Windows</option>
+            <option value="mac">macOS</option>
+            <option value="linux">Linux</option>
+          </select>
+        </div>
+
+        <div class="alert alert-info">
+          <strong>Quick check:</strong> Run <code>gres-b2b --version</code> in your terminal to verify installation.
+        </div>
+
+        <div class="button-group">
+          <button class="btn btn-secondary" onclick="prevStep()">Back</button>
+          <button class="btn btn-primary" onclick="nextStep()">Continue to AI Connection</button>
+        </div>
+      </div>
+
+      <!-- Step 3: Install Tool (New Project only) -->
+      <div class="step" data-step="3">
+        <h2>Install GRES B2B Tool</h2>
+        <p>Run these commands in your terminal. Click any command to copy it.</p>
 
         <div class="terminal">
           <div class="terminal-header">
@@ -464,7 +555,6 @@
           </div>
           <div class="terminal-actions">
             <button class="terminal-btn" onclick="copyAllCommands()">Copy All Commands</button>
-            <button class="terminal-btn primary" onclick="markInstallComplete()">I've Run These Commands</button>
           </div>
         </div>
 
@@ -474,40 +564,35 @@
 
         <div class="button-group">
           <button class="btn btn-secondary" onclick="prevStep()">Back</button>
-          <button class="btn btn-primary" onclick="nextStep()" id="install-next">Continue</button>
+          <button class="btn btn-primary" onclick="nextStep()">I've Installed It → Continue</button>
         </div>
       </div>
 
-      <!-- Step 3: Select AI Client -->
-      <div class="step" data-step="3">
-        <h2>Step 3: Connect to Your AI Agent</h2>
-        <p>Select the AI coding assistant you use. We'll configure MCP so it can run governance scans.</p>
+      <!-- Step 4: Select AI Client -->
+      <div class="step" data-step="4">
+        <h2>Connect to Your AI Agent</h2>
+        <p>Select the AI coding assistant you use. We'll configure MCP so it can run governance scans automatically.</p>
 
         <div class="client-cards">
           <div class="client-card" data-client="claude" onclick="selectClient('claude')">
             <div class="icon">🤖</div>
             <div class="name">Claude Desktop</div>
-            <div class="desc">Anthropic's AI assistant</div>
           </div>
           <div class="client-card" data-client="cursor" onclick="selectClient('cursor')">
             <div class="icon">⚡</div>
             <div class="name">Cursor</div>
-            <div class="desc">AI-first code editor</div>
           </div>
           <div class="client-card" data-client="windsurf" onclick="selectClient('windsurf')">
             <div class="icon">🏄</div>
             <div class="name">Windsurf</div>
-            <div class="desc">Codeium's AI IDE</div>
           </div>
           <div class="client-card" data-client="vscode" onclick="selectClient('vscode')">
             <div class="icon">💻</div>
             <div class="name">VS Code + Copilot</div>
-            <div class="desc">GitHub Copilot Chat</div>
           </div>
           <div class="client-card" data-client="codex" onclick="selectClient('codex')">
             <div class="icon">🔮</div>
-            <div class="name">OpenAI Codex CLI</div>
-            <div class="desc">Command-line AI</div>
+            <div class="name">Codex CLI</div>
           </div>
         </div>
 
@@ -544,13 +629,13 @@
 
         <div class="button-group">
           <button class="btn btn-secondary" onclick="prevStep()">Back</button>
-          <button class="btn btn-primary" onclick="nextStep()" id="step3-next" disabled>Continue</button>
+          <button class="btn btn-primary" onclick="nextStep()" id="step4-next" disabled>Continue</button>
         </div>
       </div>
 
-      <!-- Step 4: Run First Scan -->
-      <div class="step" data-step="4">
-        <h2>Step 4: Run Your First Scan</h2>
+      <!-- Step 5: Run First Scan -->
+      <div class="step" data-step="5">
+        <h2>Run Your First Scan</h2>
         <p>Let's verify everything works by running a governance scan on your project.</p>
 
         <div class="terminal">
@@ -580,12 +665,12 @@
 
         <div class="button-group">
           <button class="btn btn-secondary" onclick="prevStep()">Back</button>
-          <button class="btn btn-primary" onclick="nextStep()">I See the Report</button>
+          <button class="btn btn-primary" onclick="nextStep()">I See the Report → Continue</button>
         </div>
       </div>
 
-      <!-- Step 5: Auto-Correction -->
-      <div class="step" data-step="5">
+      <!-- Step 6: Auto-Correction -->
+      <div class="step" data-step="6">
         <div style="text-align: center;">
           <div class="success-icon">✓</div>
           <h2>You're All Set!</h2>
@@ -637,10 +722,19 @@
   </div>
 
   <script>
-    let currentStep = 1;
+    let projectType = null; // 'new' or 'existing'
     let selectedClient = null;
     let projectPath = '';
     let selectedOS = 'windows';
+
+    // Flow paths:
+    // New project:      1 -> 2a -> 3 -> 4 -> 5 -> 6
+    // Existing project: 1 -> 2b -> 4 -> 5 -> 6
+
+    const flowNew = ['1', '2a', '3', '4', '5', '6'];
+    const flowExisting = ['1', '2b', '4', '5', '6'];
+    let currentFlow = flowNew;
+    let currentStepIndex = 0;
 
     // Detect OS on load
     function detectOS() {
@@ -649,6 +743,17 @@
       if (ua.indexOf('Mac') !== -1) return 'mac';
       if (ua.indexOf('Linux') !== -1) return 'linux';
       return 'windows';
+    }
+
+    // Update step indicator
+    function updateStepIndicator() {
+      const container = document.getElementById('step-indicator');
+      container.innerHTML = currentFlow.map((step, index) => {
+        let className = 'step-dot';
+        if (index < currentStepIndex) className += ' completed';
+        else if (index === currentStepIndex) className += ' active';
+        return `<div class="${className}"></div>`;
+      }).join('');
     }
 
     // Client configurations
@@ -735,7 +840,19 @@
       }
     };
 
-    // Generate install commands based on OS
+    function selectProjectType(type) {
+      projectType = type;
+      document.querySelectorAll('.type-card').forEach(card => {
+        card.classList.remove('selected');
+      });
+      document.querySelector(`[data-type="${type}"]`).classList.add('selected');
+      document.getElementById('step1-next').disabled = false;
+
+      // Set the flow
+      currentFlow = type === 'new' ? flowNew : flowExisting;
+      updateStepIndicator();
+    }
+
     function generateInstallCommands() {
       const os = document.getElementById('os-select').value;
       const terminal = document.getElementById('install-terminal');
@@ -749,7 +866,7 @@
           { type: 'info', text: '# Download and install gres-b2b' },
           { type: 'prompt', text: 'irm https://raw.githubusercontent.com/ajranjith/b2b-governance-action/main/templates/wizard/auto-install.ps1 | iex' },
           { type: 'output', text: '' },
-          { type: 'info', text: '# Or download manually from releases:' },
+          { type: 'info', text: '# Or download manually:' },
           { type: 'prompt', text: 'Start-Process "https://github.com/ajranjith/b2b-governance-action/releases/latest"' },
         ];
       } else {
@@ -764,17 +881,14 @@
       }
 
       terminal.innerHTML = commands.map(cmd =>
-        `<div class="terminal-line ${cmd.type}" onclick="copyCommand(this)">${cmd.text}</div>`
+        `<div class="terminal-line ${cmd.type}" ${cmd.type === 'prompt' ? 'onclick="copyCommand(this)"' : ''}>${cmd.text}</div>`
       ).join('');
     }
 
-    // Generate scan commands
     function generateScanCommands() {
-      const path = document.getElementById('project-path').value || 'your-project-folder';
-      const os = document.getElementById('os-select').value;
+      const path = document.getElementById('project-path')?.value || 'your-project-folder';
+      const os = projectType === 'new' ? document.getElementById('os-select').value : document.getElementById('os-select-existing').value;
       const terminal = document.getElementById('scan-terminal');
-
-      let cdCmd = os === 'windows' ? `cd "${path}"` : `cd "${path}"`;
 
       // Check if it's a GitHub URL
       if (path.startsWith('https://github.com/')) {
@@ -793,7 +907,7 @@
       } else {
         terminal.innerHTML = `
           <div class="terminal-line info"># Navigate to your project</div>
-          <div class="terminal-line prompt" onclick="copyCommand(this)">${cdCmd}</div>
+          <div class="terminal-line prompt" onclick="copyCommand(this)">cd "${path}"</div>
           <div class="terminal-line output"></div>
           <div class="terminal-line info"># Run governance scan</div>
           <div class="terminal-line prompt" onclick="copyCommand(this)">gres-b2b --verify</div>
@@ -814,14 +928,18 @@
       // Show MCP instructions
       document.getElementById('mcp-instructions').style.display = 'block';
 
+      // Get OS from the appropriate selector
+      const os = projectType === 'new' ?
+        document.getElementById('os-select').value :
+        document.getElementById('os-select-existing').value;
+
       // Update config path and code
       const config = clientConfigs[client];
-      const os = document.getElementById('os-select').value;
       document.getElementById('config-path').textContent = config.paths[os];
       document.getElementById('mcp-config-code').textContent = config.config;
       document.getElementById('client-name').textContent = config.name;
 
-      document.getElementById('step3-next').disabled = false;
+      document.getElementById('step4-next').disabled = false;
     }
 
     function copyCommand(element) {
@@ -872,57 +990,47 @@
       });
     }
 
-    function markInstallComplete() {
-      document.getElementById('install-terminal').innerHTML += `
-        <div class="terminal-line output"></div>
-        <div class="terminal-line success">✓ Installation marked as complete</div>
-      `;
-    }
-
     function nextStep() {
-      if (currentStep === 1) {
+      const currentStepId = currentFlow[currentStepIndex];
+
+      // Handle step-specific logic before moving
+      if (currentStepId === '2a') {
         projectPath = document.getElementById('project-path').value;
         selectedOS = document.getElementById('os-select').value;
         generateInstallCommands();
       }
-      if (currentStep === 2) {
-        // Update config paths based on OS
-        if (selectedClient) {
-          const config = clientConfigs[selectedClient];
-          document.getElementById('config-path').textContent = config.paths[selectedOS];
-        }
+      if (currentStepId === '2b') {
+        selectedOS = document.getElementById('os-select-existing').value;
       }
-      if (currentStep === 3) {
+      if (currentStepId === '4') {
         generateScanCommands();
       }
-      goToStep(currentStep + 1);
+
+      currentStepIndex++;
+      goToStep(currentFlow[currentStepIndex]);
     }
 
     function prevStep() {
-      goToStep(currentStep - 1);
+      currentStepIndex--;
+      goToStep(currentFlow[currentStepIndex]);
     }
 
-    function goToStep(step) {
-      currentStep = step;
-
+    function goToStep(stepId) {
+      // Hide all steps
       document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
-      document.querySelector(`.step[data-step="${step}"]`).classList.add('active');
-
-      document.querySelectorAll('.step-dot').forEach((dot, index) => {
-        dot.classList.remove('active', 'completed');
-        if (index + 1 < step) {
-          dot.classList.add('completed');
-        } else if (index + 1 === step) {
-          dot.classList.add('active');
-        }
-      });
+      // Show target step
+      document.querySelector(`.step[data-step="${stepId}"]`).classList.add('active');
+      // Update indicator
+      updateStepIndicator();
     }
 
     // Initialize
     document.addEventListener('DOMContentLoaded', () => {
       const detectedOS = detectOS();
       document.getElementById('os-select').value = detectedOS;
+      document.getElementById('os-select-existing').value = detectedOS;
       selectedOS = detectedOS;
+      updateStepIndicator();
     });
   </script>
 </body>
