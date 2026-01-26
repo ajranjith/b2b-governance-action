@@ -50,7 +50,7 @@ inputs:
   repo:
     description: "Repository hosting gres-b2b releases (owner/name)"
     required: false
-    default: "gres-digital/b2b-governance-mcp"
+    default: "ajranjith/b2b-governance-action"
 
   token:
     description: "GitHub token for downloading releases (use secrets.GITHUB_TOKEN for private repos)"

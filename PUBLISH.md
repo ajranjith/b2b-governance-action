@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-1. Create the repo `gres-digital/b2b-governance-action` on GitHub
+1. Create the repo `ajranjith/b2b-governance-action` on GitHub
 2. Make it **public**
 3. Push these files to `main` branch
 
@@ -17,7 +17,7 @@ git init
 git add .
 git commit -m "feat: Initial GitHub Action for GRES B2B Governance"
 git branch -M main
-git remote add origin https://github.com/gres-digital/b2b-governance-action.git
+git remote add origin https://github.com/ajranjith/b2b-governance-action.git
 git push -u origin main
 ```
 
@@ -35,7 +35,7 @@ git push -f origin v1
 
 ### 3. Publish to Marketplace
 
-1. Go to https://github.com/gres-digital/b2b-governance-action
+1. Go to https://github.com/ajranjith/b2b-governance-action
 2. Click **Releases** → **Draft a new release**
 3. Select tag `v1.0.0`
 4. Check **"Publish this Action to the GitHub Marketplace"**

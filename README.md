@@ -176,7 +176,7 @@ Control how violations affect your pipeline.
 | `sarif` | SARIF output path | `.b2b/report.sarif.json` |
 | `junit` | JUnit output path | `.b2b/report.junit.xml` |
 | `version` | Release version to use | `latest` |
-| `repo` | Release repository | `gres-digital/b2b-governance-mcp` |
+| `repo` | Release repository | `ajranjith/b2b-governance-action` |
 | `token` | GitHub token for downloads | _(none)_ |
 
 ---
@@ -347,7 +347,7 @@ For local development with AI assistants, you have several options:
 
 **No license key required.** Anyone can download and run this action.
 
-The action wrapper is MIT licensed. The `gres-b2b` engine license is defined in the [release repository](https://github.com/gres-digital/b2b-governance-mcp).
+The action wrapper is MIT licensed. The `gres-b2b` engine license is defined in the [release repository](https://github.com/ajranjith/b2b-governance-action).
 
 ---
 
@@ -363,4 +363,4 @@ The action wrapper is MIT licensed. The `gres-b2b` engine license is defined in 
 
 MIT (this action wrapper)
 
-See [gres-digital/b2b-governance-mcp](https://github.com/gres-digital/b2b-governance-mcp) for engine license.
+See [ajranjith/b2b-governance-action](https://github.com/ajranjith/b2b-governance-action) for engine license.
