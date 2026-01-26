@@ -825,18 +825,15 @@
       codex: {
         name: 'Codex CLI',
         paths: {
-          windows: '%USERPROFILE%\\.codex\\config.json',
-          mac: '~/.codex/config.json',
-          linux: '~/.codex/config.json'
+          windows: '%USERPROFILE%\\.codex\\config.toml',
+          mac: '~/.codex/config.toml',
+          linux: '~/.codex/config.toml'
         },
-        config: `{
-  "mcpServers": {
-    "gres-b2b": {
-      "command": "gres-b2b",
-      "args": []
-    }
-  }
-}`
+        config: `# Add to your config.toml:
+
+[mcp_servers.gres-b2b]
+command = "gres-b2b"
+args = []`
       }
     };
 
