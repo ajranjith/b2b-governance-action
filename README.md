@@ -293,14 +293,14 @@ Exit code `1` gates the CI pipeline on failure.
 
 For local development with AI assistants, you have several options:
 
-| Option | Best For | Effort |
-|--------|----------|--------|
-| **Setup Wizard** | Non-coders / Managers | ⭐ (1 min) |
-| **Copy/Paste Setup** | Standard Developers | ⭐⭐ (2 mins) |
-| **CLI Native** | Power Users / CI/CD | ⭐⭐⭐ (5 mins) |
-| **Dev Container** | Enterprise Teams | ✨ (Zero-step) |
+| Option | Best For |
+|--------|----------|
+| **Setup Wizard** | Non-coders / Managers |
+| **Copy/Paste Setup** | Standard Developers |
+| **CLI Native** | Power Users / CI/CD |
+| **Dev Container** | Enterprise Teams |
 
-### Option 1 — Setup Wizard (⭐ 1 minute)
+### Option 1 — Setup Wizard
 
 1. Download the release for your OS
 2. Move it to a stable folder (e.g., `C:\Tools\...` or `~/tools/...`)
@@ -309,7 +309,7 @@ For local development with AI assistants, you have several options:
 
 ✅ You should see: `.b2b/report.html` + `.b2b/report.json`
 
-### Option 2 — Copy/Paste Setup (⭐⭐ 2 minutes)
+### Option 2 — Copy/Paste Setup
 
 1. Place the tool in a stable folder
 2. Open your AI client settings → **Tools / MCP Servers**
@@ -318,7 +318,7 @@ For local development with AI assistants, you have several options:
 
 ✅ Run a scan/doctor → confirm `.b2b/report.html`
 
-### Option 3 — CLI Native (⭐⭐⭐ 5 minutes)
+### Option 3 — CLI Native
 
 1. Build from source (or use the binary)
 2. Run scans in CI on PRs
@@ -326,7 +326,7 @@ For local development with AI assistants, you have several options:
 
 ✅ Consistent enforcement across the whole team
 
-### Option 4 — Dev Container (✨ Zero-step)
+### Option 4 — Dev Container
 
 1. Add a `.devcontainer/` that includes the tool + env + defaults
 2. User clicks "Reopen in Container"
