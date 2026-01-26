@@ -586,9 +586,13 @@
             <div class="icon">🏄</div>
             <div class="name">Windsurf</div>
           </div>
-          <div class="client-card" data-client="vscode" onclick="selectClient('vscode')">
+          <div class="client-card" data-client="vscode-copilot" onclick="selectClient('vscode-copilot')">
             <div class="icon">💻</div>
             <div class="name">VS Code + Copilot</div>
+          </div>
+          <div class="client-card" data-client="vscode-codex" onclick="selectClient('vscode-codex')">
+            <div class="icon">🧠</div>
+            <div class="name">VS Code + Codex</div>
           </div>
           <div class="client-card" data-client="codex" onclick="selectClient('codex')">
             <div class="icon">🔮</div>
@@ -597,31 +601,62 @@
         </div>
 
         <div id="mcp-instructions" style="display: none;">
-          <div class="mcp-steps">
-            <div class="mcp-step">
-              <div class="mcp-step-number">1</div>
-              <div class="mcp-step-content">
-                <h4>Open Settings File</h4>
-                <p>Open this file in a text editor:</p>
-                <div class="config-path" id="config-path">Loading...</div>
+          <!-- Auto-config option -->
+          <div id="auto-config-section" style="display: none;">
+            <h3 style="margin-bottom: 1rem;">Option A: Auto-Configure (Recommended)</h3>
+            <p>Run this command to automatically add the MCP server to your config:</p>
+            <div class="terminal">
+              <div class="terminal-header">
+                <span class="terminal-dot red"></span>
+                <span class="terminal-dot yellow"></span>
+                <span class="terminal-dot green"></span>
+                <span class="terminal-title" id="auto-config-terminal-title">Terminal</span>
+              </div>
+              <div class="terminal-body" id="auto-config-terminal"></div>
+              <div class="terminal-actions">
+                <button class="terminal-btn" onclick="copyAutoConfig()">Copy Command</button>
               </div>
             </div>
-            <div class="mcp-step">
-              <div class="mcp-step-number">2</div>
-              <div class="mcp-step-content">
-                <h4>Add MCP Configuration</h4>
-                <p>Add or merge this configuration:</p>
-                <div class="code-block">
-                  <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-                  <code id="mcp-config-code"></code>
+          </div>
+
+          <!-- Manual config option -->
+          <div id="manual-config-section">
+            <h3 id="manual-config-title" style="margin-bottom: 1rem;">Manual Configuration</h3>
+            <div class="mcp-steps">
+              <div class="mcp-step">
+                <div class="mcp-step-number">1</div>
+                <div class="mcp-step-content">
+                  <h4>Open Settings File</h4>
+                  <p>Open this file in a text editor:</p>
+                  <div class="config-path" id="config-path">Loading...</div>
                 </div>
               </div>
-            </div>
-            <div class="mcp-step">
-              <div class="mcp-step-number">3</div>
-              <div class="mcp-step-content">
-                <h4>Restart Your AI Client</h4>
-                <p>Close and reopen <span id="client-name">your AI client</span> to load the MCP server.</p>
+              <div class="mcp-step">
+                <div class="mcp-step-number">2</div>
+                <div class="mcp-step-content">
+                  <h4>Add MCP Configuration</h4>
+                  <p>Add or merge this configuration:</p>
+                  <div class="code-block">
+                    <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+                    <code id="mcp-config-code"></code>
+                  </div>
+                </div>
+              </div>
+              <div class="mcp-step">
+                <div class="mcp-step-number">3</div>
+                <div class="mcp-step-content">
+                  <h4>Restart Your AI Client</h4>
+                  <p id="restart-instructions">Close and reopen <span id="client-name">your AI client</span> to load the MCP server.</p>
+                  <div id="restart-command" style="display: none; margin-top: 0.5rem;"></div>
+                </div>
+              </div>
+              <div class="mcp-step" id="test-step">
+                <div class="mcp-step-number">4</div>
+                <div class="mcp-step-content">
+                  <h4>Test MCP Connection</h4>
+                  <p>Verify the MCP server is working:</p>
+                  <div id="test-command"></div>
+                </div>
               </div>
             </div>
           </div>
@@ -772,7 +807,10 @@
       "args": []
     }
   }
-}`
+}`,
+        restartCmd: { windows: 'Restart Claude Desktop manually', mac: 'Restart Claude Desktop manually', linux: 'Restart Claude Desktop manually' },
+        testCmd: { windows: 'Ask Claude: "List available MCP tools"', mac: 'Ask Claude: "List available MCP tools"', linux: 'Ask Claude: "List available MCP tools"' },
+        supportsAutoConfig: false
       },
       cursor: {
         name: 'Cursor',
@@ -788,7 +826,10 @@
       "args": []
     }
   }
-}`
+}`,
+        restartCmd: { windows: 'Restart Cursor manually', mac: 'Restart Cursor manually', linux: 'Restart Cursor manually' },
+        testCmd: { windows: 'Open Cursor chat and ask: "What MCP servers are available?"', mac: 'Open Cursor chat and ask: "What MCP servers are available?"', linux: 'Open Cursor chat and ask: "What MCP servers are available?"' },
+        supportsAutoConfig: false
       },
       windsurf: {
         name: 'Windsurf',
@@ -804,10 +845,13 @@
       "args": []
     }
   }
-}`
+}`,
+        restartCmd: { windows: 'Restart Windsurf manually', mac: 'Restart Windsurf manually', linux: 'Restart Windsurf manually' },
+        testCmd: { windows: 'Open Windsurf chat and ask: "What MCP servers are available?"', mac: 'Open Windsurf chat and ask: "What MCP servers are available?"', linux: 'Open Windsurf chat and ask: "What MCP servers are available?"' },
+        supportsAutoConfig: false
       },
-      vscode: {
-        name: 'VS Code',
+      'vscode-copilot': {
+        name: 'VS Code + Copilot',
         paths: {
           windows: '%APPDATA%\\Code\\User\\settings.json',
           mac: '~/Library/Application Support/Code/User/settings.json',
@@ -820,7 +864,71 @@
       "args": []
     }
   }
-}`
+}`,
+        restartCmd: { windows: 'Restart VS Code manually', mac: 'Restart VS Code manually', linux: 'Restart VS Code manually' },
+        testCmd: { windows: 'Open Copilot chat and ask: "What MCP tools are available?"', mac: 'Open Copilot chat and ask: "What MCP tools are available?"', linux: 'Open Copilot chat and ask: "What MCP tools are available?"' },
+        supportsAutoConfig: false
+      },
+      'vscode-codex': {
+        name: 'VS Code + Codex',
+        paths: {
+          windows: '%USERPROFILE%\\.codex\\config.toml',
+          mac: '~/.codex/config.toml',
+          linux: '~/.codex/config.toml'
+        },
+        config: `# Add to your config.toml:
+
+[mcp_servers.gres-b2b]
+command = "gres-b2b"
+args = []`,
+        autoConfigCmd: {
+          windows: (path) => `# Auto-add MCP server to config.toml
+$configPath = "$env:USERPROFILE\\.codex\\config.toml"
+$mcpConfig = @"
+
+[mcp_servers.gres-b2b]
+command = "gres-b2b"
+args = []
+"@
+
+if (!(Test-Path $configPath)) {
+  New-Item -ItemType Directory -Path "$env:USERPROFILE\\.codex" -Force | Out-Null
+  Set-Content $configPath "# Codex CLI settings"
+}
+Add-Content $configPath $mcpConfig
+Write-Host "MCP server added to config.toml"`,
+          mac: (path) => `# Auto-add MCP server to config.toml
+CONFIG_PATH="$HOME/.codex/config.toml"
+mkdir -p "$HOME/.codex"
+cat >> "$CONFIG_PATH" << 'EOF'
+
+[mcp_servers.gres-b2b]
+command = "gres-b2b"
+args = []
+EOF
+echo "MCP server added to config.toml"`,
+          linux: (path) => `# Auto-add MCP server to config.toml
+CONFIG_PATH="$HOME/.codex/config.toml"
+mkdir -p "$HOME/.codex"
+cat >> "$CONFIG_PATH" << 'EOF'
+
+[mcp_servers.gres-b2b]
+command = "gres-b2b"
+args = []
+EOF
+echo "MCP server added to config.toml"`
+        },
+        restartCmd: {
+          windows: 'Close and reopen VS Code, or restart Claude Code extension',
+          mac: 'Close and reopen VS Code, or restart Claude Code extension',
+          linux: 'Close and reopen VS Code, or restart Claude Code extension'
+        },
+        testCmd: {
+          windows: 'In VS Code terminal, run: codex "list your MCP tools"',
+          mac: 'In VS Code terminal, run: codex "list your MCP tools"',
+          linux: 'In VS Code terminal, run: codex "list your MCP tools"'
+        },
+        supportsAutoConfig: true
       },
       codex: {
         name: 'Codex CLI',
@@ -833,7 +941,61 @@
 
 [mcp_servers.gres-b2b]
 command = "gres-b2b"
-args = []`
+args = []`,
+        autoConfigCmd: {
+          windows: (path) => `# Auto-add MCP server to config.toml
+$configPath = "$env:USERPROFILE\\.codex\\config.toml"
+$mcpConfig = @"
+
+[mcp_servers.gres-b2b]
+command = "gres-b2b"
+args = []
+"@
+
+if (!(Test-Path $configPath)) {
+  New-Item -ItemType Directory -Path "$env:USERPROFILE\\.codex" -Force | Out-Null
+  Set-Content $configPath "# Codex CLI settings"
+}
+Add-Content $configPath $mcpConfig
+Write-Host "MCP server added to config.toml"`,
+          mac: (path) => `# Auto-add MCP server to config.toml
+CONFIG_PATH="$HOME/.codex/config.toml"
+mkdir -p "$HOME/.codex"
+cat >> "$CONFIG_PATH" << 'EOF'
+
+[mcp_servers.gres-b2b]
+command = "gres-b2b"
+args = []
+EOF
+echo "MCP server added to config.toml"`,
+          linux: (path) => `# Auto-add MCP server to config.toml
+CONFIG_PATH="$HOME/.codex/config.toml"
+mkdir -p "$HOME/.codex"
+cat >> "$CONFIG_PATH" << 'EOF'
+
+[mcp_servers.gres-b2b]
+command = "gres-b2b"
+args = []
+EOF
+echo "MCP server added to config.toml"`
+        },
+        restartCmd: {
+          windows: (path) => `# Start Codex in your project folder
+cd "${path || 'your-project-folder'}"
+codex`,
+          mac: (path) => `# Start Codex in your project folder
+cd "${path || 'your-project-folder'}"
+codex`,
+          linux: (path) => `# Start Codex in your project folder
+cd "${path || 'your-project-folder'}"
+codex`
+        },
+        testCmd: {
+          windows: 'codex "list your available MCP tools and servers"',
+          mac: 'codex "list your available MCP tools and servers"',
+          linux: 'codex "list your available MCP tools and servers"'
+        },
+        supportsAutoConfig: true
       }
     };
 
@@ -887,31 +1049,60 @@ args = []`
       const os = projectType === 'new' ? document.getElementById('os-select').value : document.getElementById('os-select-existing').value;
       const terminal = document.getElementById('scan-terminal');
 
+      // Check if using Codex CLI
+      const isCodex = selectedClient === 'codex' || selectedClient === 'vscode-codex';
+
       // Check if it's a GitHub URL
       if (path.startsWith('https://github.com/')) {
         const repoName = path.split('/').pop().replace('.git', '');
-        terminal.innerHTML = `
-          <div class="terminal-line info"># Clone your repository</div>
-          <div class="terminal-line prompt" onclick="copyCommand(this)">git clone ${path}</div>
-          <div class="terminal-line prompt" onclick="copyCommand(this)">cd ${repoName}</div>
-          <div class="terminal-line output"></div>
-          <div class="terminal-line info"># Run governance scan</div>
-          <div class="terminal-line prompt" onclick="copyCommand(this)">gres-b2b --verify</div>
-          <div class="terminal-line output"></div>
-          <div class="terminal-line info"># Open the report</div>
-          <div class="terminal-line prompt" onclick="copyCommand(this)">${os === 'windows' ? 'start' : 'open'} .b2b/report.html</div>
-        `;
+
+        if (isCodex) {
+          terminal.innerHTML = `
+            <div class="terminal-line info"># Clone your repository</div>
+            <div class="terminal-line prompt" onclick="copyCommand(this)">git clone ${path}</div>
+            <div class="terminal-line prompt" onclick="copyCommand(this)">cd ${repoName}</div>
+            <div class="terminal-line output"></div>
+            <div class="terminal-line info"># Start Codex in your project folder</div>
+            <div class="terminal-line prompt" onclick="copyCommand(this)">codex</div>
+            <div class="terminal-line output"></div>
+            <div class="terminal-line info"># Then ask Codex:</div>
+            <div class="terminal-line output">"Run a governance scan using gres-b2b and show me the results"</div>
+          `;
+        } else {
+          terminal.innerHTML = `
+            <div class="terminal-line info"># Clone your repository</div>
+            <div class="terminal-line prompt" onclick="copyCommand(this)">git clone ${path}</div>
+            <div class="terminal-line prompt" onclick="copyCommand(this)">cd ${repoName}</div>
+            <div class="terminal-line output"></div>
+            <div class="terminal-line info"># Run governance scan</div>
+            <div class="terminal-line prompt" onclick="copyCommand(this)">gres-b2b --verify</div>
+            <div class="terminal-line output"></div>
+            <div class="terminal-line info"># Open the report</div>
+            <div class="terminal-line prompt" onclick="copyCommand(this)">${os === 'windows' ? 'start' : 'open'} .b2b/report.html</div>
+          `;
+        }
       } else {
-        terminal.innerHTML = `
-          <div class="terminal-line info"># Navigate to your project</div>
-          <div class="terminal-line prompt" onclick="copyCommand(this)">cd "${path}"</div>
-          <div class="terminal-line output"></div>
-          <div class="terminal-line info"># Run governance scan</div>
-          <div class="terminal-line prompt" onclick="copyCommand(this)">gres-b2b --verify</div>
-          <div class="terminal-line output"></div>
-          <div class="terminal-line info"># Open the report</div>
-          <div class="terminal-line prompt" onclick="copyCommand(this)">${os === 'windows' ? 'start' : 'open'} .b2b/report.html</div>
-        `;
+        if (isCodex) {
+          terminal.innerHTML = `
+            <div class="terminal-line info"># Navigate to your project and start Codex</div>
+            <div class="terminal-line prompt" onclick="copyCommand(this)">cd "${path}"</div>
+            <div class="terminal-line prompt" onclick="copyCommand(this)">codex</div>
+            <div class="terminal-line output"></div>
+            <div class="terminal-line info"># Then ask Codex:</div>
+            <div class="terminal-line output">"Run a governance scan using gres-b2b and show me the results"</div>
+          `;
+        } else {
+          terminal.innerHTML = `
+            <div class="terminal-line info"># Navigate to your project</div>
+            <div class="terminal-line prompt" onclick="copyCommand(this)">cd "${path}"</div>
+            <div class="terminal-line output"></div>
+            <div class="terminal-line info"># Run governance scan</div>
+            <div class="terminal-line prompt" onclick="copyCommand(this)">gres-b2b --verify</div>
+            <div class="terminal-line output"></div>
+            <div class="terminal-line info"># Open the report</div>
+            <div class="terminal-line prompt" onclick="copyCommand(this)">${os === 'windows' ? 'start' : 'open'} .b2b/report.html</div>
+          `;
+        }
       }
     }
 
@@ -930,11 +1121,126 @@ args = []`
         document.getElementById('os-select').value :
         document.getElementById('os-select-existing').value;
 
+      // Get project path
+      const path = document.getElementById('project-path')?.value || '';
+
       // Update config path and code
       const config = clientConfigs[client];
       document.getElementById('config-path').textContent = config.paths[os];
       document.getElementById('mcp-config-code').textContent = config.config;
       document.getElementById('client-name').textContent = config.name;
+
+      // Handle auto-config section
+      const autoConfigSection = document.getElementById('auto-config-section');
+      const manualTitle = document.getElementById('manual-config-title');
+
+      if (config.supportsAutoConfig && config.autoConfigCmd) {
+        autoConfigSection.style.display = 'block';
+        manualTitle.textContent = 'Option B: Manual Configuration';
+
+        // Generate auto-config command
+        const autoConfigTerminal = document.getElementById('auto-config-terminal');
+        const autoCmd = typeof config.autoConfigCmd[os] === 'function'
+          ? config.autoConfigCmd[os](path)
+          : config.autoConfigCmd[os];
+
+        autoConfigTerminal.innerHTML = autoCmd.split('\n').map(line => {
+          if (line.startsWith('#')) {
+            return `<div class="terminal-line info">${line}</div>`;
+          } else if (line.trim()) {
+            return `<div class="terminal-line prompt" onclick="copyCommand(this)">${line}</div>`;
+          }
+          return '';
+        }).join('');
+
+        document.getElementById('auto-config-terminal-title').textContent = os === 'windows' ? 'PowerShell' : 'Terminal';
+      } else {
+        autoConfigSection.style.display = 'none';
+        manualTitle.textContent = 'Manual Configuration';
+      }
+
+      // Handle restart command
+      const restartCommandDiv = document.getElementById('restart-command');
+      const restartInstructions = document.getElementById('restart-instructions');
+
+      if (config.restartCmd) {
+        const restartCmd = typeof config.restartCmd[os] === 'function'
+          ? config.restartCmd[os](path)
+          : config.restartCmd[os];
+
+        if (restartCmd.includes('\n') || restartCmd.startsWith('#') || restartCmd.includes('cd ')) {
+          // Show as terminal command
+          restartCommandDiv.style.display = 'block';
+          restartCommandDiv.innerHTML = `
+            <div class="terminal" style="margin-top: 0.5rem;">
+              <div class="terminal-header">
+                <span class="terminal-dot red"></span>
+                <span class="terminal-dot yellow"></span>
+                <span class="terminal-dot green"></span>
+                <span class="terminal-title">${os === 'windows' ? 'PowerShell' : 'Terminal'}</span>
+              </div>
+              <div class="terminal-body">
+                ${restartCmd.split('\n').map(line => {
+                  if (line.startsWith('#')) {
+                    return `<div class="terminal-line info">${line}</div>`;
+                  } else if (line.trim()) {
+                    return `<div class="terminal-line prompt" onclick="copyCommand(this)">${line}</div>`;
+                  }
+                  return '';
+                }).join('')}
+              </div>
+            </div>
+          `;
+          restartInstructions.innerHTML = `After adding the config, start ${config.name}:`;
+        } else {
+          // Simple text instruction
+          restartCommandDiv.style.display = 'none';
+          restartInstructions.innerHTML = restartCmd;
+        }
+      }
+
+      // Handle test command
+      const testCommandDiv = document.getElementById('test-command');
+      const testStep = document.getElementById('test-step');
+
+      if (config.testCmd) {
+        testStep.style.display = 'flex';
+        const testCmd = typeof config.testCmd[os] === 'function'
+          ? config.testCmd[os](path)
+          : config.testCmd[os];
+
+        if (testCmd.includes('codex ') || testCmd.startsWith('cd ')) {
+          // Show as terminal command
+          testCommandDiv.innerHTML = `
+            <div class="terminal" style="margin-top: 0.5rem;">
+              <div class="terminal-header">
+                <span class="terminal-dot red"></span>
+                <span class="terminal-dot yellow"></span>
+                <span class="terminal-dot green"></span>
+                <span class="terminal-title">${os === 'windows' ? 'PowerShell' : 'Terminal'}</span>
+              </div>
+              <div class="terminal-body">
+                <div class="terminal-line prompt" onclick="copyCommand(this)">${testCmd}</div>
+              </div>
+            </div>
+            <p style="font-size: 0.85rem; margin-top: 0.5rem; color: var(--gray-500);">
+              If gres-b2b is listed in the response, the MCP server is working!
+            </p>
+          `;
+        } else {
+          // Simple text instruction
+          testCommandDiv.innerHTML = `
+            <div class="alert alert-info" style="margin: 0.5rem 0;">
+              ${testCmd}
+            </div>
+            <p style="font-size: 0.85rem; color: var(--gray-500);">
+              If gres-b2b is listed in the response, the MCP server is working!
+            </p>
+          `;
+        }
+      } else {
+        testStep.style.display = 'none';
+      }
 
       document.getElementById('step4-next').disabled = false;
     }
@@ -984,6 +1290,14 @@ args = []`
           btn.textContent = 'Copy';
           btn.classList.remove('copied');
         }, 2000);
+      });
+    }
+
+    function copyAutoConfig() {
+      const commands = document.querySelectorAll('#auto-config-terminal .terminal-line.prompt');
+      const text = Array.from(commands).map(c => c.textContent).join('\n');
+      navigator.clipboard.writeText(text).then(() => {
+        alert('Auto-config command copied! Paste in your terminal to run.');
       });
     }
 
