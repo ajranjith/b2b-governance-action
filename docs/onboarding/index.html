@@ -880,6 +880,9 @@
   </div>
 
   <script>
+    // VERSION: 2026-01-26-v3 - Debug version with console logging
+    console.log('GRES B2B Wizard Script Loaded - v3');
+
     let projectType = null; // 'new' or 'existing'
     let selectedClient = null;
     let projectPath = '';
@@ -1124,19 +1127,27 @@ codex`
     };
 
     function selectProjectType(type) {
+      console.log('selectProjectType called with:', type);
       projectType = type;
+
       // Only target type-cards in step 1 (with data-type attribute)
-      document.querySelectorAll('.step[data-step="1"] .type-card').forEach(card => {
+      const step1Cards = document.querySelectorAll('.step[data-step="1"] .type-card');
+      console.log('Found step 1 cards:', step1Cards.length);
+      step1Cards.forEach(card => {
         card.classList.remove('selected');
       });
-      const selectedCard = document.querySelector(`.step[data-step="1"] [data-type="${type}"]`);
+
+      const selectedCard = document.querySelector('.step[data-step="1"] [data-type="' + type + '"]');
+      console.log('Selected card found:', selectedCard);
       if (selectedCard) {
         selectedCard.classList.add('selected');
       }
 
       const nextBtn = document.getElementById('step1-next');
+      console.log('Next button found:', nextBtn);
       if (nextBtn) {
         nextBtn.disabled = false;
+        console.log('Button disabled set to:', nextBtn.disabled);
       }
 
       // Set the flow
