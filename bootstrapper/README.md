@@ -1,6 +1,18 @@
 # GRES B2B Bootstrapper
 
+> **This is "Option 1 — Download & Install Wizard"** from the [main documentation](../README.md#get-started).
+>
+> For CLI setup (macOS/Linux/manual), see the [CLI Setup Guide](https://ajranjith.github.io/b2b-governance-action/cli/).
+
 Zero-terminal Windows installer using native dialogs. No PowerShell or admin required.
+
+## Download
+
+[**Download gres-b2b-setup.exe →**](https://github.com/ajranjith/b2b-governance-action/releases/latest/download/gres-b2b-setup.exe)
+
+---
+
+## For Developers
 
 ## State Machine Flow
 
