@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CLI Setup Guide - GRES B2B Governance</title>
+  <style>
+    :root {
+      --primary: #2563eb;
+      --primary-dark: #1d4ed8;
+      --success: #10b981;
+      --bg: #f8fafc;
+      --card-bg: #ffffff;
+      --text: #1e293b;
+      --text-muted: #64748b;
+      --border: #e2e8f0;
+      --code-bg: #1e293b;
+      --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem;
+    }
+
+    header {
+      margin-bottom: 2rem;
+    }
+
+    .breadcrumb {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+      margin-bottom: 1rem;
+    }
+
+    .breadcrumb a {
+      color: var(--primary);
+      text-decoration: none;
+    }
+
+    .breadcrumb a:hover {
+      text-decoration: underline;
+    }
+
+    header h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+    }
+
+    header p {
+      color: var(--text-muted);
+      font-size: 1.0625rem;
+    }
+
+    .step {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+      box-shadow: var(--shadow);
+    }
+
+    .step-header {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+    }
+
+    .step-number {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 2rem;
+      height: 2rem;
+      background: var(--primary);
+      color: white;
+      border-radius: 50%;
+      font-weight: 600;
+      font-size: 0.875rem;
+      flex-shrink: 0;
+    }
+
+    .step h2 {
+      font-size: 1.25rem;
+      font-weight: 600;
+    }
+
+    .step p {
+      color: var(--text-muted);
+      margin-bottom: 1rem;
+    }
+
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 1rem;
+    }
+
+    .tab {
+      padding: 0.75rem 1.25rem;
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 0.9375rem;
+      font-weight: 500;
+      color: var(--text-muted);
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+      transition: all 0.2s;
+    }
+
+    .tab:hover {
+      color: var(--text);
+    }
+
+    .tab.active {
+      color: var(--primary);
+      border-bottom-color: var(--primary);
+    }
+
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    .code-block {
+      position: relative;
+      background: var(--code-bg);
+      border-radius: 8px;
+      margin-bottom: 1rem;
+    }
+
+    .code-block pre {
+      padding: 1rem;
+      padding-right: 4rem;
+      overflow-x: auto;
+      color: #e2e8f0;
+      font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+      font-size: 0.875rem;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    .copy-btn {
+      position: absolute;
+      top: 0.5rem;
+      right: 0.5rem;
+      padding: 0.5rem;
+      background: rgba(255, 255, 255, 0.1);
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      color: #94a3b8;
+      transition: all 0.2s;
+    }
+
+    .copy-btn:hover {
+      background: rgba(255, 255, 255, 0.2);
+      color: white;
+    }
+
+    .copy-btn.copied {
+      color: var(--success);
+    }
+
+    .copy-btn svg {
+      width: 1.25rem;
+      height: 1.25rem;
+    }
+
+    .note {
+      background: #fef3c7;
+      border: 1px solid #fcd34d;
+      border-radius: 8px;
+      padding: 1rem;
+      font-size: 0.9375rem;
+    }
+
+    .note-title {
+      font-weight: 600;
+      color: #92400e;
+      margin-bottom: 0.25rem;
+    }
+
+    .note p {
+      color: #78350f;
+      margin: 0;
+    }
+
+    .success-box {
+      background: #d1fae5;
+      border: 1px solid #6ee7b7;
+      border-radius: 8px;
+      padding: 1rem;
+      margin-top: 1rem;
+    }
+
+    .success-box-title {
+      font-weight: 600;
+      color: #065f46;
+      margin-bottom: 0.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .success-box-title svg {
+      width: 1.25rem;
+      height: 1.25rem;
+      color: var(--success);
+    }
+
+    .success-box pre {
+      background: rgba(0, 0, 0, 0.05);
+      padding: 0.75rem;
+      border-radius: 4px;
+      font-family: 'SFMono-Regular', Consolas, monospace;
+      font-size: 0.875rem;
+      color: #065f46;
+      overflow-x: auto;
+    }
+
+    footer {
+      text-align: center;
+      padding-top: 2rem;
+      margin-top: 2rem;
+      border-top: 1px solid var(--border);
+      color: var(--text-muted);
+      font-size: 0.875rem;
+    }
+
+    footer a {
+      color: var(--primary);
+      text-decoration: none;
+    }
+
+    footer a:hover {
+      text-decoration: underline;
+    }
+
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: var(--primary);
+      text-decoration: none;
+      font-weight: 500;
+      margin-bottom: 2rem;
+    }
+
+    .back-link:hover {
+      text-decoration: underline;
+    }
+
+    .back-link svg {
+      width: 1.25rem;
+      height: 1.25rem;
+    }
+
+    @media (max-width: 640px) {
+      header h1 {
+        font-size: 1.5rem;
+      }
+
+      .tab {
+        padding: 0.5rem 0.75rem;
+        font-size: 0.875rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <a href="../" class="back-link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="19" y1="12" x2="5" y2="12"/>
+        <polyline points="12 19 5 12 12 5"/>
+      </svg>
+      Back to Get Started
+    </a>
+
+    <header>
+      <h1>CLI Setup Guide</h1>
+      <p>Step-by-step commands to install and configure gres-b2b</p>
+    </header>
+
+    <!-- Step 1: Install -->
+    <div class="step">
+      <div class="step-header">
+        <span class="step-number">1</span>
+        <h2>Install gres-b2b CLI</h2>
+      </div>
+      <p>Run the one-line installer for your platform:</p>
+
+      <div class="tabs">
+        <button class="tab active" data-tab="install-macos">macOS / Linux</button>
+        <button class="tab" data-tab="install-windows">Windows PowerShell</button>
+      </div>
+
+      <div id="install-macos" class="tab-content active">
+        <div class="code-block">
+          <pre>curl -fsSL https://ajranjith.github.io/b2b-governance-action/install.sh | bash</pre>
+          <button class="copy-btn" data-copy="curl -fsSL https://ajranjith.github.io/b2b-governance-action/install.sh | bash">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+            </svg>
+          </button>
+        </div>
+        <p>Installs to <code>~/.local/bin</code> (or <code>/usr/local/bin</code> with sudo).</p>
+      </div>
+
+      <div id="install-windows" class="tab-content">
+        <div class="code-block">
+          <pre>irm https://ajranjith.github.io/b2b-governance-action/install.ps1 | iex</pre>
+          <button class="copy-btn" data-copy="irm https://ajranjith.github.io/b2b-governance-action/install.ps1 | iex">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+            </svg>
+          </button>
+        </div>
+        <p>Installs to <code>%LOCALAPPDATA%\gres-b2b</code>. No admin required.</p>
+      </div>
+    </div>
+
+    <!-- Step 2: Verify -->
+    <div class="step">
+      <div class="step-header">
+        <span class="step-number">2</span>
+        <h2>Verify Installation</h2>
+      </div>
+      <p>Open a <strong>new terminal</strong> (so PATH is updated) and run:</p>
+
+      <div class="code-block">
+        <pre>gres-b2b --version</pre>
+        <button class="copy-btn" data-copy="gres-b2b --version">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="success-box">
+        <div class="success-box-title">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+          Expected output
+        </div>
+        <pre>gres-b2b version 1.x.x</pre>
+      </div>
+    </div>
+
+    <!-- Step 3: Configure MCP -->
+    <div class="step">
+      <div class="step-header">
+        <span class="step-number">3</span>
+        <h2>Configure MCP for Your AI Agent</h2>
+      </div>
+      <p>Add gres-b2b as an MCP server in your AI agent's configuration:</p>
+
+      <div class="tabs">
+        <button class="tab active" data-tab="mcp-claude">Claude Desktop</button>
+        <button class="tab" data-tab="mcp-cursor">Cursor</button>
+        <button class="tab" data-tab="mcp-vscode">VS Code / Windsurf</button>
+      </div>
+
+      <div id="mcp-claude" class="tab-content active">
+        <p>Edit <code>%APPDATA%\Claude\claude_desktop_config.json</code> (Windows) or <code>~/Library/Application Support/Claude/claude_desktop_config.json</code> (macOS):</p>
+        <div class="code-block">
+          <pre>{
+  "mcpServers": {
+    "gres-b2b": {
+      "command": "gres-b2b",
+      "args": ["mcp", "serve"]
+    }
+  }
+}</pre>
+          <button class="copy-btn" data-copy='{"mcpServers":{"gres-b2b":{"command":"gres-b2b","args":["mcp","serve"]}}}'>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+            </svg>
+          </button>
+        </div>
+        <p>Restart Claude Desktop after saving.</p>
+      </div>
+
+      <div id="mcp-cursor" class="tab-content">
+        <p>Open Cursor Settings &rarr; Features &rarr; MCP Servers &rarr; Add Server:</p>
+        <div class="code-block">
+          <pre>Name: gres-b2b
+Command: gres-b2b mcp serve</pre>
+          <button class="copy-btn" data-copy="gres-b2b mcp serve">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <div id="mcp-vscode" class="tab-content">
+        <p>Install the MCP extension, then add to your <code>settings.json</code>:</p>
+        <div class="code-block">
+          <pre>{
+  "mcp.servers": {
+    "gres-b2b": {
+      "command": "gres-b2b",
+      "args": ["mcp", "serve"]
+    }
+  }
+}</pre>
+          <button class="copy-btn" data-copy='{"mcp.servers":{"gres-b2b":{"command":"gres-b2b","args":["mcp","serve"]}}}'>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 4: Test MCP -->
+    <div class="step">
+      <div class="step-header">
+        <span class="step-number">4</span>
+        <h2>Test MCP Connection</h2>
+      </div>
+      <p>Verify that MCP is working correctly with your AI agent:</p>
+
+      <div class="code-block">
+        <pre>gres-b2b mcp selftest</pre>
+        <button class="copy-btn" data-copy="gres-b2b mcp selftest">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="success-box">
+        <div class="success-box-title">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+          Expected output
+        </div>
+        <pre>MCP selftest passed
+Protocol: stdio
+Handshake: OK</pre>
+      </div>
+
+      <div class="note" style="margin-top: 1rem;">
+        <div class="note-title">Troubleshooting</div>
+        <p>If selftest fails, ensure your AI agent is running and MCP is enabled in its settings.</p>
+      </div>
+    </div>
+
+    <!-- Step 5: Run Doctor -->
+    <div class="step">
+      <div class="step-header">
+        <span class="step-number">5</span>
+        <h2>Check Prerequisites</h2>
+      </div>
+      <p>Run the doctor command to verify all prerequisites are met:</p>
+
+      <div class="code-block">
+        <pre>gres-b2b doctor</pre>
+        <button class="copy-btn" data-copy="gres-b2b doctor">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="success-box">
+        <div class="success-box-title">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+          Expected output
+        </div>
+        <pre>Doctor check passed
+All prerequisites OK</pre>
+      </div>
+    </div>
+
+    <!-- Step 6: First Scan -->
+    <div class="step">
+      <div class="step-header">
+        <span class="step-number">6</span>
+        <h2>Run Your First Scan</h2>
+      </div>
+      <p>Navigate to your project folder and run a governance scan:</p>
+
+      <div class="code-block">
+        <pre>cd /path/to/your/project
+gres-b2b scan --live</pre>
+        <button class="copy-btn" data-copy="gres-b2b scan --live">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+          </svg>
+        </button>
+      </div>
+
+      <p>This generates your governance report at <code>.b2b/report.html</code>.</p>
+
+      <div class="success-box">
+        <div class="success-box-title">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+          You're all set!
+        </div>
+        <pre>Open .b2b/report.html to view your RED/AMBER/GREEN dashboard</pre>
+      </div>
+    </div>
+
+    <footer>
+      <p>
+        <a href="../">Back to Get Started</a> |
+        <a href="https://github.com/ajranjith/b2b-governance-action">GitHub Repository</a> |
+        <a href="https://github.com/ajranjith/b2b-governance-action#readme">Full Documentation</a>
+      </p>
+    </footer>
+  </div>
+
+  <script>
+    // Tab switching
+    document.querySelectorAll('.tabs').forEach(tabGroup => {
+      const tabs = tabGroup.querySelectorAll('.tab');
+      tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+          const targetId = tab.dataset.tab;
+          const step = tab.closest('.step');
+
+          // Update active tab
+          tabs.forEach(t => t.classList.remove('active'));
+          tab.classList.add('active');
+
+          // Show target content
+          step.querySelectorAll('.tab-content').forEach(content => {
+            content.classList.remove('active');
+          });
+          step.querySelector('#' + targetId).classList.add('active');
+        });
+      });
+    });
+
+    // Copy to clipboard
+    document.querySelectorAll('.copy-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const text = btn.dataset.copy;
+        try {
+          await navigator.clipboard.writeText(text);
+          btn.classList.add('copied');
+          btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+          setTimeout(() => {
+            btn.classList.remove('copied');
+            btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`;
+          }, 2000);
+        } catch (err) {
+          console.error('Failed to copy:', err);
+        }
+      });
+    });
+  </script>
+</body>
+</html>

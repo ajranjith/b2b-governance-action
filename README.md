@@ -9,6 +9,35 @@ A governance framework + lightweight MCP tool for **B2B eCommerce portals** (dea
 
 ---
 
+## Get Started
+
+Choose your setup method:
+
+### Option 1 — Download & Install Wizard (Recommended)
+
+**For Windows users.** One-click installer with automatic configuration.
+
+[**Download gres-b2b-setup.exe →**](https://github.com/ajranjith/b2b-governance-action/releases/latest/download/gres-b2b-setup.exe)
+
+The wizard will:
+- Install `gres-b2b` CLI to your user folder
+- Add it to your PATH automatically
+- Configure your AI agent (Claude, Cursor, VS Code, etc.)
+- Verify MCP connection
+
+### Option 2 — CLI Setup Guide
+
+**For macOS/Linux, or if you prefer manual setup.**
+
+[**View CLI Setup Guide →**](https://ajranjith.github.io/b2b-governance-action/cli/)
+
+Step-by-step commands for:
+- Installing via shell script
+- Configuring MCP for your AI agent
+- Verifying installation
+
+---
+
 ## Why This Exists
 
 B2B eCommerce changes are high-impact: a small mistake in **pricing**, **permissions**, or **order lifecycle** can cause major financial and operational damage. AI speeds delivery, but can introduce risky shortcuts (UI→DB coupling, missing policy checks, inconsistent patterns, weak audit trails).
@@ -289,57 +318,11 @@ Exit code `1` gates the CI pipeline on failure.
 
 ---
 
-## Installation Options (Local / MCP)
+## Local Installation
 
-For local development with AI assistants, you have several options:
+See [**Get Started**](#get-started) at the top of this README for installation options.
 
-| Option | Best For | |
-|--------|----------|---|
-| **Setup Wizard** | Non-coders / Managers | [Open →](https://ajranjith.github.io/b2b-governance-action/onboarding/) |
-| **Copy/Paste Setup** | Standard Developers | [Download →](https://github.com/ajranjith/b2b-governance-action/releases) |
-| **CLI Native** | Power Users / CI/CD | [Releases →](https://github.com/ajranjith/b2b-governance-action/releases) |
-| **Dev Container** | Enterprise Teams | [Codespaces →](https://github.com/codespaces/new?repo=ajranjith/b2b-governance-action) |
-
-### Option 1 — Setup Wizard
-
-[**Launch Wizard →**](https://ajranjith.github.io/b2b-governance-action/onboarding/)
-
-1. Download the release for your OS
-2. Move it to a stable folder (e.g., `C:\Tools\...` or `~/tools/...`)
-3. Open your project folder
-4. Run the wizard (`--setup` or double-click on Windows)
-
-✅ You should see: `.b2b/report.html` + `.b2b/report.json`
-
-### Option 2 — Copy/Paste Setup
-
-[**Download Release →**](https://github.com/ajranjith/b2b-governance-action/releases)
-
-1. Place the tool in a stable folder
-2. Open your AI client settings → **Tools / MCP Servers**
-3. Add **gres-b2b** and point it to the tool path
-4. Save + restart client if needed
-
-✅ Run a scan/doctor → confirm `.b2b/report.html`
-
-### Option 3 — CLI Native
-
-[**View Releases →**](https://github.com/ajranjith/b2b-governance-action/releases)
-
-1. Build from source (or use the binary)
-2. Run scans in CI on PRs
-3. Upload `.b2b/report.html` as an artifact for reviewers
-
-✅ Consistent enforcement across the whole team
-
-### Option 4 — Dev Container
-
-[**Open in Codespaces →**](https://github.com/codespaces/new?repo=ajranjith/b2b-governance-action)
-
-1. Add a `.devcontainer/` that includes the tool + env + defaults
-2. User clicks "Reopen in Container"
-
-✅ Ready-to-use governance with minimal setup effort
+For CI/CD integration, use the GitHub Action as shown in [Quickstart](#quickstart).
 
 ---
 
