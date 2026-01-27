@@ -571,9 +571,9 @@
         <p>Copy the command below, paste it into your terminal, and run it.</p>
 
         <div class="status-box warning">
-          <div class="status-icon">📋</div>
+          <div class="status-icon">⚠️</div>
           <div class="status-content">
-            <strong>How This Works</strong>
+            <strong>Important</strong>
             <p>This wizard is a static webpage — it cannot run scans directly. The scan runs via the <code>gres-b2b</code> CLI you execute in your terminal.</p>
           </div>
         </div>
@@ -586,7 +586,7 @@
             <span class="terminal-title" id="scan-terminal-title">PowerShell / Terminal</span>
           </div>
           <div class="terminal-body">
-            <div class="terminal-line comment"># Run this in your terminal</div>
+            <div class="terminal-line comment"># Copy and run in your terminal</div>
             <div class="terminal-line command" id="scan-command">gres-b2b scan --live</div>
           </div>
           <div class="terminal-actions">
@@ -597,13 +597,28 @@
         <div class="status-box success">
           <div class="status-icon">✅</div>
           <div class="status-content">
-            <strong>What Happens When You Run It</strong>
-            <p>
-              1. The CLI starts a local server on <code>127.0.0.1</code><br>
-              2. Your browser opens automatically to a <strong>Live Progress</strong> page<br>
-              3. Progress streams in real-time (GREEN/AMBER/RED counters)<br>
-              4. When done, click "Open Full Report" to view results
-            </p>
+            <strong>What Happens Next</strong>
+            <ul style="margin: 0.5rem 0 0 1.25rem; padding: 0;">
+              <li>The CLI starts a local web server on <code>127.0.0.1</code></li>
+              <li>The CLI opens a browser tab with live progress</li>
+              <li>When complete, you can open the full HTML report</li>
+            </ul>
+          </div>
+        </div>
+
+        <h3 style="margin-top: 1.5rem;">Expected Terminal Output</h3>
+        <div class="terminal" style="margin-top: 0.5rem;">
+          <div class="terminal-header">
+            <span class="terminal-dot red"></span>
+            <span class="terminal-dot yellow"></span>
+            <span class="terminal-dot green"></span>
+            <span class="terminal-title">What You'll See</span>
+          </div>
+          <div class="terminal-body">
+            <div class="terminal-line success">Live progress: http://127.0.0.1:49321/progress?run=abc123</div>
+            <div class="terminal-line output">Scanning workspace...</div>
+            <div class="terminal-line output">Found 47 files to analyze</div>
+            <div class="terminal-line success">Writing report: .b2b/report.html</div>
           </div>
         </div>
 
@@ -611,10 +626,7 @@
           <div class="status-icon">💡</div>
           <div class="status-content">
             <strong>If Nothing Opens</strong>
-            <p>
-              Copy the URL printed in your terminal:<br>
-              <code>Live progress: http://127.0.0.1:&lt;port&gt;/progress</code>
-            </p>
+            <p>Copy the "Live progress" URL printed in your terminal and paste it into your browser.</p>
           </div>
         </div>
 
@@ -820,6 +832,7 @@
     let projectTab = 'github';
     let scanMode = 'copy';
     let detectedConfig = null;
+    let workspacePath = null; // Stores the source path/URL from Step 4
 
     const flow = [1, 2, 3, 4, 5, 6, 7];
     const stepLabels = ['Mode', 'Config', 'Verify', 'Project', 'Scan', 'Fix', 'Done'];
@@ -939,6 +952,11 @@ tool_timeout_sec = 60`
       if (currentIndex < flow.length - 1) {
         currentStep = flow[currentIndex + 1];
         showStep(currentStep);
+
+        // Update scan command when entering Step 5
+        if (currentStep === 5) {
+          updateScanCommand();
+        }
       }
     }
 
@@ -1350,15 +1368,44 @@ EOF</div>
         document.getElementById('workspace-title').textContent = workspaceTitle;
         document.getElementById('workspace-desc').innerHTML = workspaceDesc;
         nextBtn.disabled = false;
+
+        // Store workspace path for scan command
+        if (projectTab === 'github') {
+          workspacePath = githubUrl;
+        } else {
+          workspacePath = localPath;
+        }
       } else {
         commandsDiv.style.display = 'none';
         nextBtn.disabled = true;
+        workspacePath = null;
+      }
+    }
+
+    function updateScanCommand() {
+      const scanCmd = document.getElementById('scan-command');
+      const autofixCmd = document.getElementById('autofix-command');
+      const maxIterations = document.getElementById('max-iterations')?.value || '10';
+
+      if (workspacePath) {
+        scanCmd.textContent = `gres-b2b scan --live --source "${workspacePath}"`;
+        if (autofixCmd) {
+          autofixCmd.textContent = `gres-b2b fix --live --max-iterations=${maxIterations} --source "${workspacePath}"`;
+        }
+      } else {
+        scanCmd.textContent = 'gres-b2b scan --live';
+        if (autofixCmd) {
+          autofixCmd.textContent = `gres-b2b fix --live --max-iterations=${maxIterations}`;
+        }
       }
     }
 
     function updateAutofixCommand() {
       const max = document.getElementById('max-iterations').value;
-      const cmd = `gres-b2b fix --live --max-iterations=${max}`;
+      let cmd = `gres-b2b fix --live --max-iterations=${max}`;
+      if (workspacePath) {
+        cmd += ` --source "${workspacePath}"`;
+      }
       document.getElementById('autofix-command').textContent = cmd;
     }
 
