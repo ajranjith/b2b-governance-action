@@ -1,88 +1,74 @@
-// GRES B2B Bootstrapper - Windows Native GUI Installer
-// Flow: Welcome → MCP Config → Target Selection → Installation → Finish
+// GRES B2B Bootstrapper - State Machine Wizard EXE
 //
-// No PowerShell required. Uses Walk GUI library for native Windows UI.
-// Writes config to %LOCALAPPDATA%\gres-b2b\config.json
-// Installs binary to %LOCALAPPDATA%\Programs\gres-b2b\gres-b2b.exe
+// Deliverable: Single Windows EXE (GRES-B2B-Installer.exe)
+// - Runs asInvoker (no elevation required)
+// - Uses native dialogs (dlgs)
+// - Automates install + PATH + config + verification
+// - Opens onboarding success page at the end
+//
+// State Machine Flow:
+// Step 1: Welcome (Permission Gate)
+// Step 2: Agent Select (Input Gate)
+// Step 3: Project Location (Input Gate)
+// Step 4: Automation Install (Silent)
+// Step 5: Verification (Gatekeeper)
 
 package main
 
 import (
 	"archive/zip"
-	"context"
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
-	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"runtime"
 	"strings"
-	"sync/atomic"
-	"syscall"
 	"time"
 	"unsafe"
 
-	"github.com/lxn/walk"
-	. "github.com/lxn/walk/declarative"
+	"github.com/gen2brain/dlgs"
+	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
 )
 
 // ============================================================================
-// Constants & Types
+// Configuration Constants
 // ============================================================================
 
-type Screen int
-
 const (
-	Welcome Screen = iota
-	MCPConfig
-	TargetSelection
-	Installation
-	Finish
-)
+	GitHubOwner = "ajranjith"
+	GitHubRepo  = "b2b-governance-action"
 
-const (
-	GitHubRepo    = "ajranjith/b2b-governance-action"
+	OnboardingReadyURL = "https://ajranjith.github.io/b2b-governance-action/onboarding/?status=ready"
+
+	InstallSubdir = `Programs\gres-b2b`
 	BinaryName    = "gres-b2b.exe"
-	OnboardingURL = "https://ajranjith.github.io/b2b-governance-action/onboarding/"
+
+	CfgSubdir = `gres-b2b`
+	CfgName   = "config.toml"
+
+	// Timeouts
+	DownloadTimeout = 2 * time.Minute
+	CmdTimeout      = 30 * time.Second
 )
 
-type AppState struct {
-	screen Screen
-
-	// MCP verification
-	mcpHost     string
-	mcpPort     string
-	mcpVerified atomic.Bool
-	mcpStatus   string
-
-	// Target selection
-	targetPath string
-	gitURL     string
-
-	// Install
-	installDir string
-	binPath    string
-	progress   int
-	installLog string
-
-	// Output
-	configPath string
+// Agent options for selection
+var AgentOptions = []string{
+	"Claude Desktop",
+	"Cursor",
+	"VS Code (Windsurf)",
+	"Codex CLI",
+	"Custom MCP",
 }
 
-type PersistedConfig struct {
-	MCPVerified bool   `json:"mcp_verified"`
-	TargetPath  string `json:"target_path,omitempty"`
-	GitURL      string `json:"git_url,omitempty"`
-	MCPHost     string `json:"mcp_host,omitempty"`
-	MCPPort     string `json:"mcp_port,omitempty"`
-}
+// ============================================================================
+// GitHub Release Types
+// ============================================================================
 
 type GitHubRelease struct {
 	TagName string  `json:"tag_name"`
@@ -94,684 +80,244 @@ type Asset struct {
 	BrowserDownloadURL string `json:"browser_download_url"`
 }
 
-var (
-	gitURLRegex = regexp.MustCompile(`^https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/?$`)
-)
-
 // ============================================================================
-// Main Entry Point
+// Main Entry Point - State Machine Wizard
 // ============================================================================
 
 func main() {
 	if runtime.GOOS != "windows" {
-		fmt.Println("This bootstrapper is Windows-only.")
+		nativeError("Platform Error", "This installer is Windows-only.")
 		os.Exit(1)
 	}
 
-	state := &AppState{
-		screen:    Welcome,
-		mcpHost:   "127.0.0.1",
-		mcpPort:   "3000",
-		mcpStatus: "Not tested",
+	// ========================================================================
+	// STEP 1: WELCOME (Permission Gate)
+	// ========================================================================
+	cont, _ := dlgs.Question("GRES B2B Setup",
+		"This will install GRES B2B Governance tools.\n\n"+
+			"What will be installed:\n"+
+			"  - gres-b2b CLI tool\n"+
+			"  - PATH configuration\n"+
+			"  - Agent configuration file\n\n"+
+			"No admin rights required.\n\n"+
+			"Continue?", true)
+	if !cont {
+		os.Exit(0)
 	}
 
-	// Resolve per-user config folder
+	// ========================================================================
+	// STEP 2: AGENT SELECT (Input Gate)
+	// ========================================================================
+	selectedAgent, ok, _ := dlgs.List("AI Agent Selection",
+		"Which AI Agent are you using?", AgentOptions)
+	if !ok || strings.TrimSpace(selectedAgent) == "" {
+		dlgs.Error("Required", "You must select an AI agent to continue.")
+		os.Exit(1)
+	}
+
+	// ========================================================================
+	// STEP 3: PROJECT LOCATION (Input Gate)
+	// ========================================================================
+	projectPath, ok, _ := dlgs.File("Select Project Folder", "", true)
+	if !ok || strings.TrimSpace(projectPath) == "" {
+		dlgs.Error("Required", "You must select a project folder to continue.")
+		os.Exit(1)
+	}
+	if err := validateFolder(projectPath); err != nil {
+		dlgs.Error("Invalid Folder", err.Error())
+		os.Exit(1)
+	}
+
+	// Resolve paths
 	localAppData := os.Getenv("LOCALAPPDATA")
 	if localAppData == "" {
-		walk.MsgBox(nil, "Error", "LOCALAPPDATA is not set.", walk.MsgBoxIconError)
-		return
+		nativeError("Setup Error", "LOCALAPPDATA environment variable is not set.")
+		os.Exit(1)
 	}
 
-	// Config at %LOCALAPPDATA%\gres-b2b\config.json
-	cfgDir := filepath.Join(localAppData, "gres-b2b")
-	_ = os.MkdirAll(cfgDir, 0o755)
-	state.configPath = filepath.Join(cfgDir, "config.json")
+	installPath := filepath.Join(localAppData, InstallSubdir)
+	binPath := filepath.Join(installPath, BinaryName)
+	cfgDir := filepath.Join(localAppData, CfgSubdir)
+	cfgPath := filepath.Join(cfgDir, CfgName)
 
-	// Install dir: %LOCALAPPDATA%\Programs\gres-b2b\
-	state.installDir = filepath.Join(localAppData, "Programs", "gres-b2b")
-	state.binPath = filepath.Join(state.installDir, BinaryName)
+	// ========================================================================
+	// STEP 4: AUTOMATION INSTALL (Silent)
+	// ========================================================================
+	dlgs.Info("Installing", "Installing gres-b2b and configuring your environment...\n\nThis may take a moment.")
 
-	var mw *walk.MainWindow
-
-	// Shared UI refs
-	var (
-		nextBtn, backBtn *walk.PushButton
-		titleText        *walk.TextLabel
-	)
-
-	// Screen composites
-	var (
-		welcomeView, mcpView, targetView, installView, finishView *walk.Composite
-	)
-
-	// MCP screen refs
-	var (
-		mcpHostEdit  *walk.LineEdit
-		mcpPortEdit  *walk.LineEdit
-		mcpStatusLbl *walk.TextLabel
-		mcpWarnLbl   *walk.TextLabel
-		testBtn      *walk.PushButton
-	)
-
-	// Target screen refs
-	var (
-		folderEdit *walk.LineEdit
-		gitEdit    *walk.LineEdit
-	)
-
-	// Install screen refs
-	var (
-		progBar        *walk.ProgressBar
-		installLogEdit *walk.TextEdit
-	)
-
-	// UI helper to safely update from goroutines
-	ui := func(fn func()) {
-		if mw != nil {
-			mw.Synchronize(fn)
-		}
+	// Create directories
+	if err := os.MkdirAll(installPath, 0o755); err != nil {
+		nativeError("Install Failed", "Could not create install directory:\n"+err.Error())
+		os.Exit(1)
+	}
+	if err := os.MkdirAll(cfgDir, 0o755); err != nil {
+		nativeError("Install Failed", "Could not create config directory:\n"+err.Error())
+		os.Exit(1)
 	}
 
-	// Progress and log update helpers
-	setProgress := func(p int) {
-		ui(func() {
-			state.progress = p
-			if progBar != nil {
-				progBar.SetValue(p)
-			}
-		})
-	}
-
-	appendLog := func(line string) {
-		ui(func() {
-			if state.installLog == "" {
-				state.installLog = line
-			} else {
-				state.installLog = state.installLog + "\r\n" + line
-			}
-			if installLogEdit != nil {
-				installLogEdit.SetText(state.installLog)
-				// Scroll to bottom
-				installLogEdit.SetTextSelection(len(state.installLog), len(state.installLog))
-			}
-		})
-	}
-
-	updateNav := func() {
-		// Title
-		switch state.screen {
-		case Welcome:
-			titleText.SetText("Welcome")
-		case MCPConfig:
-			titleText.SetText("MCP Config - Verify Connection")
-		case TargetSelection:
-			titleText.SetText("Target Selection")
-		case Installation:
-			titleText.SetText("Installation")
-		case Finish:
-			titleText.SetText("Setup Complete!")
-		}
-
-		// Buttons
-		backBtn.SetEnabled(state.screen != Welcome && state.screen != Installation && state.screen != Finish)
-		if state.screen == Finish {
-			nextBtn.SetText("Open Report && Exit")
-		} else {
-			nextBtn.SetText("Next")
-		}
-
-		// Gate Next rules
-		switch state.screen {
-		case MCPConfig:
-			nextBtn.SetEnabled(state.mcpVerified.Load())
-		case TargetSelection:
-			nextBtn.SetEnabled(isTargetValid(state))
-		case Installation:
-			nextBtn.SetEnabled(false) // enabled when install+scan succeed
-		default:
-			nextBtn.SetEnabled(true)
-		}
-
-		// Show correct screen
-		welcomeView.SetVisible(state.screen == Welcome)
-		mcpView.SetVisible(state.screen == MCPConfig)
-		targetView.SetVisible(state.screen == TargetSelection)
-		installView.SetVisible(state.screen == Installation)
-		finishView.SetVisible(state.screen == Finish)
-	}
-
-	// === Screen Builders ===
-
-	buildWelcome := func() Composite {
-		return Composite{
-			AssignTo: &welcomeView,
-			Visible:  true,
-			Layout:   VBox{Margins: Margins{Left: 10, Top: 10, Right: 10, Bottom: 10}, Spacing: 10},
-			Children: []Widget{
-				TextLabel{Text: "GRES B2B Governance - Setup Wizard"},
-				TextLabel{Text: ""},
-				TextLabel{Text: "This installer will:"},
-				TextLabel{Text: "  1. Verify your MCP connection"},
-				TextLabel{Text: "  2. Let you select a project folder or GitHub URL"},
-				TextLabel{Text: "  3. Download and install gres-b2b"},
-				TextLabel{Text: "  4. Run a verified governance scan"},
-				TextLabel{Text: ""},
-				TextLabel{Text: "No PowerShell or admin rights required."},
-				TextLabel{Text: ""},
-				TextLabel{Text: "Click Next to continue."},
-			},
-		}
-	}
-
-	buildMCP := func() Composite {
-		return Composite{
-			AssignTo: &mcpView,
-			Visible:  false,
-			Layout:   VBox{Margins: Margins{Left: 10, Top: 10, Right: 10, Bottom: 10}, Spacing: 8},
-			Children: []Widget{
-				TextLabel{Text: "Enter the MCP endpoint your AI host exposes."},
-				TextLabel{Text: "(Most AI agents use localhost on a specific port)"},
-				TextLabel{Text: ""},
-				Composite{
-					Layout: Grid{Columns: 2, Spacing: 8},
-					Children: []Widget{
-						TextLabel{Text: "Host:"},
-						LineEdit{
-							AssignTo: &mcpHostEdit,
-							Text:     state.mcpHost,
-							OnTextChanged: func() {
-								state.mcpHost = strings.TrimSpace(mcpHostEdit.Text())
-								state.mcpVerified.Store(false)
-								state.mcpStatus = "Not tested"
-								mcpStatusLbl.SetText(state.mcpStatus)
-								mcpWarnLbl.SetText("")
-								nextBtn.SetEnabled(false)
-							},
-						},
-						TextLabel{Text: "Port:"},
-						LineEdit{
-							AssignTo: &mcpPortEdit,
-							Text:     state.mcpPort,
-							OnTextChanged: func() {
-								state.mcpPort = strings.TrimSpace(mcpPortEdit.Text())
-								state.mcpVerified.Store(false)
-								state.mcpStatus = "Not tested"
-								mcpStatusLbl.SetText(state.mcpStatus)
-								mcpWarnLbl.SetText("")
-								nextBtn.SetEnabled(false)
-							},
-						},
-					},
-				},
-				TextLabel{Text: ""},
-				PushButton{
-					AssignTo: &testBtn,
-					Text:     "Test MCP Connection",
-					OnClicked: func() {
-						testBtn.SetEnabled(false)
-						mcpWarnLbl.SetText("")
-						mcpStatusLbl.SetText("Testing...")
-						go func(host, port string) {
-							ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-							defer cancel()
-
-							err := testMCP(ctx, host, port)
-							ui(func() {
-								defer testBtn.SetEnabled(true)
-								if err != nil {
-									state.mcpVerified.Store(false)
-									state.mcpStatus = "FAILED: " + err.Error()
-									mcpStatusLbl.SetText(state.mcpStatus)
-									mcpWarnLbl.SetText("MCP not detected. Ensure your AI host is running.")
-									nextBtn.SetEnabled(false)
-									return
-								}
-								state.mcpVerified.Store(true)
-								state.mcpStatus = "OK: MCP endpoint detected"
-								mcpStatusLbl.SetText(state.mcpStatus)
-								mcpWarnLbl.SetText("")
-								nextBtn.SetEnabled(true)
-							})
-						}(state.mcpHost, state.mcpPort)
-					},
-				},
-				TextLabel{AssignTo: &mcpStatusLbl, Text: state.mcpStatus},
-				TextLabel{
-					AssignTo:  &mcpWarnLbl,
-					TextColor: walk.RGB(180, 0, 0),
-					Text:      "",
-				},
-				TextLabel{Text: ""},
-				TextLabel{Text: "Note: This check is agent-agnostic. It verifies something"},
-				TextLabel{Text: "is listening on the endpoint, not a specific AI host."},
-			},
-		}
-	}
-
-	buildTarget := func() Composite {
-		return Composite{
-			AssignTo: &targetView,
-			Visible:  false,
-			Layout:   VBox{Margins: Margins{Left: 10, Top: 10, Right: 10, Bottom: 10}, Spacing: 8},
-			Children: []Widget{
-				TextLabel{Text: "Choose a local folder OR enter a GitHub URL."},
-				TextLabel{Text: "(Leave one blank if not applicable)"},
-				TextLabel{Text: ""},
-				Composite{
-					Layout: Grid{Columns: 3, Spacing: 8},
-					Children: []Widget{
-						TextLabel{Text: "Local Folder:"},
-						LineEdit{
-							AssignTo: &folderEdit,
-							Text:     state.targetPath,
-							OnTextChanged: func() {
-								state.targetPath = strings.TrimSpace(folderEdit.Text())
-								nextBtn.SetEnabled(isTargetValid(state))
-							},
-						},
-						PushButton{
-							Text: "Browse...",
-							OnClicked: func() {
-								dlg := new(walk.FileDialog)
-								dlg.Title = "Select a project folder"
-								dlg.FilePath = state.targetPath
-								if ok, _ := dlg.ShowBrowseFolder(mw); ok {
-									state.targetPath = dlg.FilePath
-									folderEdit.SetText(state.targetPath)
-									nextBtn.SetEnabled(isTargetValid(state))
-								}
-							},
-						},
-
-						TextLabel{Text: "GitHub URL:"},
-						LineEdit{
-							AssignTo: &gitEdit,
-							Text:     state.gitURL,
-							OnTextChanged: func() {
-								state.gitURL = strings.TrimSpace(gitEdit.Text())
-								nextBtn.SetEnabled(isTargetValid(state))
-							},
-						},
-						Composite{}, // empty third column
-					},
-				},
-				TextLabel{Text: ""},
-				TextLabel{Text: "Validation: folder must exist and be readable,"},
-				TextLabel{Text: "and Git URL must be a valid GitHub repository URL."},
-			},
-		}
-	}
-
-	buildInstall := func() Composite {
-		return Composite{
-			AssignTo: &installView,
-			Visible:  false,
-			Layout:   VBox{Margins: Margins{Left: 10, Top: 10, Right: 10, Bottom: 10}, Spacing: 8},
-			Children: []Widget{
-				TextLabel{Text: "Installing gres-b2b and running a verified scan..."},
-				TextLabel{Text: ""},
-				ProgressBar{
-					AssignTo: &progBar,
-					MinValue: 0,
-					MaxValue: 100,
-					Value:    state.progress,
-				},
-				TextLabel{Text: ""},
-				TextEdit{
-					AssignTo: &installLogEdit,
-					ReadOnly: true,
-					VScroll:  true,
-					MinSize:  Size{Height: 200},
-				},
-			},
-		}
-	}
-
-	buildFinish := func() Composite {
-		return Composite{
-			AssignTo: &finishView,
-			Visible:  false,
-			Layout:   VBox{Margins: Margins{Left: 10, Top: 10, Right: 10, Bottom: 10}, Spacing: 10},
-			Children: []Widget{
-				TextLabel{Text: "Setup complete!"},
-				TextLabel{Text: ""},
-				TextLabel{Text: "gres-b2b has been installed and added to your PATH."},
-				TextLabel{Text: "A governance scan has been completed successfully."},
-				TextLabel{Text: ""},
-				TextLabel{Text: "You can now use gres-b2b from any terminal:"},
-				TextLabel{Text: "  gres-b2b --version"},
-				TextLabel{Text: "  gres-b2b doctor"},
-				TextLabel{Text: "  gres-b2b scan --live"},
-				TextLabel{Text: ""},
-				TextLabel{Text: "Click below to view the scan report and exit."},
-			},
-		}
-	}
-
-	// === Window ===
-	err := MainWindow{
-		AssignTo: &mw,
-		Title:    "GRES B2B Governance - Setup Wizard",
-		MinSize:  Size{Width: 640, Height: 480},
-		Size:     Size{Width: 720, Height: 520},
-		Layout:   VBox{Margins: Margins{Left: 12, Top: 12, Right: 12, Bottom: 12}, Spacing: 10},
-		Children: []Widget{
-			TextLabel{
-				AssignTo: &titleText,
-				Font:     Font{PointSize: 14, Bold: true},
-				Text:     "Welcome",
-			},
-			Composite{
-				Layout: VBox{},
-				Children: []Widget{
-					buildWelcome(),
-					buildMCP(),
-					buildTarget(),
-					buildInstall(),
-					buildFinish(),
-				},
-			},
-			VSpacer{},
-			Composite{
-				Layout: HBox{Spacing: 8},
-				Children: []Widget{
-					HSpacer{},
-					PushButton{
-						AssignTo: &backBtn,
-						Text:     "Back",
-						OnClicked: func() {
-							switch state.screen {
-							case MCPConfig:
-								state.screen = Welcome
-							case TargetSelection:
-								state.screen = MCPConfig
-							}
-							updateNav()
-						},
-					},
-					PushButton{
-						AssignTo: &nextBtn,
-						Text:     "Next",
-						OnClicked: func() {
-							switch state.screen {
-							case Welcome:
-								state.screen = MCPConfig
-								updateNav()
-
-							case MCPConfig:
-								if !state.mcpVerified.Load() {
-									return
-								}
-								state.screen = TargetSelection
-								updateNav()
-
-							case TargetSelection:
-								if !isTargetValid(state) {
-									walk.MsgBox(mw, "Validation", "Please select a valid folder OR enter a valid GitHub URL.", walk.MsgBoxIconWarning)
-									return
-								}
-								// Enter Installation + kick background workflow
-								state.screen = Installation
-								state.progress = 0
-								state.installLog = ""
-								if progBar != nil {
-									progBar.SetValue(0)
-								}
-								if installLogEdit != nil {
-									installLogEdit.SetText("")
-								}
-								updateNav()
-
-								go func() {
-									success := runInstallAndScan(state, ui, setProgress, appendLog)
-									if success {
-										ui(func() {
-											state.screen = Finish
-											updateNav()
-											nextBtn.SetEnabled(true)
-										})
-									}
-								}()
-
-							case Installation:
-								// Next is disabled until success; ignore clicks
-
-							case Finish:
-								// Open report and exit
-								reportPath := filepath.Join(state.targetPath, ".b2b", "report.html")
-								if _, err := os.Stat(reportPath); err == nil {
-									openBrowser("file:///" + strings.ReplaceAll(reportPath, "\\", "/"))
-								} else {
-									openBrowser(OnboardingURL + "?status=success")
-								}
-								mw.Close()
-							}
-						},
-					},
-				},
-			},
-		},
-	}.Create()
+	// Download binary from GitHub Releases
+	version, err := downloadLatestBinary(binPath)
 	if err != nil {
-		walk.MsgBox(nil, "Error", err.Error(), walk.MsgBoxIconError)
-		return
+		nativeError("Download Failed", "Could not download gres-b2b.exe:\n\n"+err.Error())
+		os.Exit(1)
 	}
 
-	updateNav()
-	mw.Run()
+	// PATH update (HKCU Environment) - idempotent
+	if err := addToUserPath(installPath); err != nil {
+		nativeError("PATH Update Failed", "Could not update PATH:\n\n"+err.Error()+"\n\nYou may need to add this folder to PATH manually:\n"+installPath)
+		// Continue anyway - binary is installed
+	}
+	broadcastEnvChange()
+
+	// Config generation (TOML format)
+	if err := writeConfigTOML(cfgPath, selectedAgent, projectPath, version); err != nil {
+		nativeError("Config Failed", "Could not write configuration file:\n\n"+err.Error())
+		os.Exit(1)
+	}
+
+	// ========================================================================
+	// STEP 5: VERIFICATION (Gatekeeper)
+	// ========================================================================
+	dlgs.Info("Verification", "Verifying MCP connection and running diagnostics...\n\nPlease ensure your AI host is running.")
+
+	// 5.1 MCP selftest (protocol-level handshake verification)
+	if err := runCmdWithTimeout(binPath, "mcp", "selftest"); err != nil {
+		dlgs.Error("MCP Connection Refused",
+			"MCP was not detected.\n\n"+
+				"Please ensure:\n"+
+				"  1. Your AI host ("+selectedAgent+") is running\n"+
+				"  2. MCP is enabled in your AI host settings\n"+
+				"  3. The MCP server is properly configured\n\n"+
+				"Then re-run the installer.\n\n"+
+				"Details:\n"+err.Error())
+		os.Exit(1)
+	}
+
+	// 5.2 Doctor (prerequisite check)
+	if err := runCmdWithTimeout(binPath, "--config", cfgPath, "doctor"); err != nil {
+		dlgs.Error("Doctor Failed",
+			"Prerequisites check did not pass.\n\n"+
+				"Please review the output and fix any issues,\n"+
+				"then re-run the installer.\n\n"+
+				"Details:\n"+err.Error())
+		os.Exit(1)
+	}
+
+	// ========================================================================
+	// SUCCESS - Open Onboarding Dashboard
+	// ========================================================================
+	dlgs.Info("Success",
+		"GRES B2B Governance is installed and verified!\n\n"+
+			"Installation details:\n"+
+			"  Binary:  "+binPath+"\n"+
+			"  Config:  "+cfgPath+"\n"+
+			"  Version: "+version+"\n"+
+			"  Agent:   "+selectedAgent+"\n"+
+			"  Project: "+projectPath+"\n\n"+
+			"Opening your onboarding dashboard...")
+
+	openBrowser(OnboardingReadyURL)
 }
 
 // ============================================================================
-// MCP Verification (agent-agnostic TCP connect)
+// Step 3: Folder Validation
 // ============================================================================
 
-func testMCP(ctx context.Context, host, port string) error {
-	host = strings.TrimSpace(host)
-	port = strings.TrimSpace(port)
-	if host == "" || port == "" || port == "0" {
-		return errors.New("host/port required")
-	}
-
-	d := net.Dialer{}
-	conn, err := d.DialContext(ctx, "tcp", net.JoinHostPort(host, port))
+func validateFolder(p string) error {
+	fi, err := os.Stat(p)
 	if err != nil {
-		return err
+		return fmt.Errorf("folder does not exist: %w", err)
 	}
-	_ = conn.Close()
+	if !fi.IsDir() {
+		return errors.New("selected path is not a folder")
+	}
+	f, err := os.Open(p)
+	if err != nil {
+		return errors.New("folder is not readable")
+	}
+	f.Close()
 	return nil
 }
 
 // ============================================================================
-// Target Validation
+// Step 4: Binary Download from GitHub Releases
 // ============================================================================
 
-func isTargetValid(s *AppState) bool {
-	// Either a valid folder OR a valid GitHub URL
-	if s.targetPath != "" {
-		info, err := os.Stat(s.targetPath)
-		if err == nil && info.IsDir() {
-			f, err := os.Open(s.targetPath)
-			if err == nil {
-				_ = f.Close()
-				return true
-			}
-		}
-	}
-
-	if s.gitURL != "" {
-		if !gitURLRegex.MatchString(s.gitURL) {
-			return false
-		}
-		_, err := url.Parse(s.gitURL)
-		return err == nil
-	}
-	return false
-}
-
-// ============================================================================
-// Install + PATH + Persist config + Run scan
-// ============================================================================
-
-func runInstallAndScan(s *AppState, ui func(func()), setProgress func(int), appendLog func(string)) bool {
-	// 1) Persist config.json
-	appendLog("Writing configuration...")
-	cfg := PersistedConfig{
-		MCPVerified: s.mcpVerified.Load(),
-		TargetPath:  s.targetPath,
-		GitURL:      s.gitURL,
-		MCPHost:     s.mcpHost,
-		MCPPort:     s.mcpPort,
-	}
-	if err := writeConfig(s.configPath, cfg); err != nil {
-		appendLog("ERROR: Failed to write config.json: " + err.Error())
-		showError("Failed to write config.json: " + err.Error())
-		return false
-	}
-	appendLog("Config saved to: " + s.configPath)
-	setProgress(10)
-
-	// 2) Create install directory
-	appendLog("Creating install directory...")
-	if err := os.MkdirAll(s.installDir, 0o755); err != nil {
-		appendLog("ERROR: Failed to create install dir: " + err.Error())
-		showError("Failed to create install dir: " + err.Error())
-		return false
-	}
-	appendLog("Install dir: " + s.installDir)
-	setProgress(15)
-
-	// 3) Download latest binary from GitHub Releases
-	appendLog("Fetching latest release from GitHub...")
-	downloadURL, version, err := getLatestReleaseURL()
+func downloadLatestBinary(destPath string) (version string, err error) {
+	// Fetch latest release info
+	release, err := fetchLatestRelease()
 	if err != nil {
-		appendLog("ERROR: Failed to get release: " + err.Error())
-		showError("Failed to get latest release: " + err.Error())
-		return false
-	}
-	appendLog("Found version: " + version)
-	setProgress(25)
-
-	appendLog("Downloading " + BinaryName + "...")
-	if err := downloadAndExtract(downloadURL, s.binPath); err != nil {
-		appendLog("ERROR: Download failed: " + err.Error())
-		showError("Download failed: " + err.Error())
-		return false
-	}
-	appendLog("Downloaded to: " + s.binPath)
-	setProgress(55)
-
-	// 4) Add to User PATH
-	appendLog("Adding to User PATH...")
-	added, err := addToUserPath(s.installDir)
-	if err != nil {
-		appendLog("WARNING: Could not update PATH: " + err.Error())
-		appendLog("You may need to add " + s.installDir + " to PATH manually.")
-	} else if added {
-		appendLog("Added " + s.installDir + " to User PATH")
-		broadcastEnvironmentChange()
-		appendLog("Broadcasted environment change to running applications")
-	} else {
-		appendLog("Already in User PATH")
-	}
-	setProgress(70)
-
-	// 5) Verify installation
-	appendLog("Verifying installation...")
-	versionOut, err := exec.Command(s.binPath, "--version").CombinedOutput()
-	if err != nil {
-		appendLog("WARNING: Version check failed: " + err.Error())
-	} else {
-		appendLog("Installed: " + strings.TrimSpace(string(versionOut)))
-	}
-	setProgress(75)
-
-	// 6) Run doctor to check prerequisites
-	appendLog("Running gres-b2b doctor...")
-	doctorOut, err := exec.Command(s.binPath, "doctor").CombinedOutput()
-	if err != nil {
-		appendLog("WARNING: Doctor returned issues: " + err.Error())
-	}
-	appendLog(strings.TrimSpace(string(doctorOut)))
-	setProgress(80)
-
-	// 7) Run verified scan
-	appendLog("Running governance scan...")
-	var scanArgs []string
-	if s.targetPath != "" {
-		scanArgs = []string{"scan", "--workspace", s.targetPath}
-	} else {
-		scanArgs = []string{"scan"}
-	}
-	scanCmd := exec.Command(s.binPath, scanArgs...)
-	scanOut, err := scanCmd.CombinedOutput()
-	appendLog(strings.TrimSpace(string(scanOut)))
-
-	if err != nil {
-		appendLog("WARNING: Scan completed with issues: " + err.Error())
-		// Don't fail - scan may return non-zero for policy violations
-	} else {
-		appendLog("Scan completed successfully!")
-	}
-	setProgress(100)
-
-	appendLog("")
-	appendLog("=== Installation Complete ===")
-	appendLog("Binary: " + s.binPath)
-	appendLog("Config: " + s.configPath)
-	if s.targetPath != "" {
-		reportPath := filepath.Join(s.targetPath, ".b2b", "report.html")
-		appendLog("Report: " + reportPath)
-	}
-
-	return true
-}
-
-// ============================================================================
-// GitHub Release Download
-// ============================================================================
-
-func getLatestReleaseURL() (downloadURL, version string, err error) {
-	apiURL := fmt.Sprintf("https://api.github.com/repos/%s/releases/latest", GitHubRepo)
-
-	client := &http.Client{Timeout: 30 * time.Second}
-	resp, err := client.Get(apiURL)
-	if err != nil {
-		return "", "", err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return "", "", fmt.Errorf("GitHub API returned %d", resp.StatusCode)
-	}
-
-	var release GitHubRelease
-	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
-		return "", "", err
+		return "", fmt.Errorf("could not fetch release info: %w", err)
 	}
 
 	version = strings.TrimPrefix(release.TagName, "v")
 
-	// Find Windows amd64 asset
+	// Find Windows asset
+	downloadURL, err := findWindowsAsset(release, version)
+	if err != nil {
+		return "", err
+	}
+
+	// Download and extract
+	if err := downloadAndExtract(downloadURL, destPath); err != nil {
+		return "", err
+	}
+
+	return version, nil
+}
+
+func fetchLatestRelease() (*GitHubRelease, error) {
+	apiURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/releases/latest", GitHubOwner, GitHubRepo)
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Get(apiURL)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("GitHub API returned status %d", resp.StatusCode)
+	}
+
+	var release GitHubRelease
+	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
+		return nil, err
+	}
+
+	return &release, nil
+}
+
+func findWindowsAsset(release *GitHubRelease, version string) (string, error) {
+	// Try exact match first
 	wantName := fmt.Sprintf("gres-b2b_%s_windows_amd64.zip", version)
 	for _, asset := range release.Assets {
 		if asset.Name == wantName {
-			return asset.BrowserDownloadURL, version, nil
+			return asset.BrowserDownloadURL, nil
 		}
 	}
 
-	// Fallback: try any windows zip
+	// Fallback: any Windows zip
 	for _, asset := range release.Assets {
-		if strings.Contains(asset.Name, "windows") && strings.HasSuffix(asset.Name, ".zip") {
-			return asset.BrowserDownloadURL, version, nil
+		name := strings.ToLower(asset.Name)
+		if strings.Contains(name, "windows") && strings.HasSuffix(name, ".zip") {
+			return asset.BrowserDownloadURL, nil
 		}
 	}
 
-	return "", "", errors.New("no Windows binary found in release assets")
+	// Fallback: any Windows exe directly
+	for _, asset := range release.Assets {
+		name := strings.ToLower(asset.Name)
+		if strings.Contains(name, "windows") && strings.HasSuffix(name, ".exe") {
+			return asset.BrowserDownloadURL, nil
+		}
+	}
+
+	return "", errors.New("no Windows binary found in release assets")
 }
 
 func downloadAndExtract(downloadURL, destPath string) error {
-	// Download to temp file
-	client := &http.Client{Timeout: 5 * time.Minute}
+	client := &http.Client{Timeout: DownloadTimeout}
 	resp, err := client.Get(downloadURL)
 	if err != nil {
 		return err
@@ -779,9 +325,15 @@ func downloadAndExtract(downloadURL, destPath string) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("download returned %d", resp.StatusCode)
+		return fmt.Errorf("download returned status %d", resp.StatusCode)
 	}
 
+	// If it's a direct exe, just save it
+	if strings.HasSuffix(strings.ToLower(downloadURL), ".exe") {
+		return downloadToFile(resp.Body, destPath)
+	}
+
+	// Otherwise, assume zip and extract
 	tmpFile, err := os.CreateTemp("", "gres-b2b-*.zip")
 	if err != nil {
 		return err
@@ -789,14 +341,32 @@ func downloadAndExtract(downloadURL, destPath string) error {
 	tmpPath := tmpFile.Name()
 	defer os.Remove(tmpPath)
 
-	_, err = io.Copy(tmpFile, resp.Body)
+	if _, err := io.Copy(tmpFile, resp.Body); err != nil {
+		tmpFile.Close()
+		return err
+	}
 	tmpFile.Close()
+
+	return extractBinaryFromZip(tmpPath, destPath)
+}
+
+func downloadToFile(r io.Reader, destPath string) error {
+	// Write to temp file first, then rename (atomic)
+	tmpPath := destPath + ".tmp"
+	f, err := os.Create(tmpPath)
 	if err != nil {
 		return err
 	}
 
-	// Extract binary from zip
-	return extractBinaryFromZip(tmpPath, destPath)
+	if _, err := io.Copy(f, r); err != nil {
+		f.Close()
+		os.Remove(tmpPath)
+		return err
+	}
+	f.Close()
+
+	os.Remove(destPath)
+	return os.Rename(tmpPath, destPath)
 }
 
 func extractBinaryFromZip(zipPath, destPath string) error {
@@ -807,26 +377,14 @@ func extractBinaryFromZip(zipPath, destPath string) error {
 	defer r.Close()
 
 	for _, f := range r.File {
-		if strings.HasSuffix(f.Name, BinaryName) || f.Name == BinaryName {
+		if strings.HasSuffix(f.Name, BinaryName) || filepath.Base(f.Name) == BinaryName {
 			rc, err := f.Open()
 			if err != nil {
 				return err
 			}
 			defer rc.Close()
 
-			// Ensure parent dir exists
-			if err := os.MkdirAll(filepath.Dir(destPath), 0o755); err != nil {
-				return err
-			}
-
-			out, err := os.OpenFile(destPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o755)
-			if err != nil {
-				return err
-			}
-			defer out.Close()
-
-			_, err = io.Copy(out, rc)
-			return err
+			return downloadToFile(rc, destPath)
 		}
 	}
 
@@ -834,83 +392,149 @@ func extractBinaryFromZip(zipPath, destPath string) error {
 }
 
 // ============================================================================
-// Windows PATH Management (User scope, no admin)
+// Step 4: PATH Management (HKCU\Environment - no admin required)
 // ============================================================================
 
-func addToUserPath(dir string) (added bool, err error) {
-	key, err := registry.OpenKey(registry.CURRENT_USER, `Environment`, registry.QUERY_VALUE|registry.SET_VALUE)
+func addToUserPath(dir string) error {
+	k, err := registry.OpenKey(registry.CURRENT_USER, `Environment`, registry.QUERY_VALUE|registry.SET_VALUE)
 	if err != nil {
-		return false, err
+		return err
 	}
-	defer key.Close()
+	defer k.Close()
 
-	currentPath, _, err := key.GetStringValue("Path")
+	cur, _, err := k.GetStringValue("Path")
 	if err != nil && err != registry.ErrNotExist {
-		return false, err
+		return err
 	}
 
-	// Check if already in PATH
-	paths := strings.Split(currentPath, ";")
-	for _, p := range paths {
-		if strings.EqualFold(strings.TrimSpace(p), dir) {
-			return false, nil // already present
-		}
+	// Idempotent: check if already in PATH
+	if pathContains(cur, dir) {
+		return nil
 	}
 
 	// Append to PATH
-	var newPath string
-	if currentPath == "" {
-		newPath = dir
-	} else {
-		newPath = currentPath + ";" + dir
+	next := strings.TrimSpace(cur)
+	if next != "" && !strings.HasSuffix(next, ";") {
+		next += ";"
 	}
+	next += dir
 
-	if err := key.SetStringValue("Path", newPath); err != nil {
-		return false, err
-	}
-
-	return true, nil
+	return k.SetStringValue("Path", next)
 }
 
-// Broadcast WM_SETTINGCHANGE so new terminals pick up PATH change
-func broadcastEnvironmentChange() {
-	user32 := syscall.NewLazyDLL("user32.dll")
-	sendMessageTimeout := user32.NewProc("SendMessageTimeoutW")
+func pathContains(pathValue, dir string) bool {
+	normDir := strings.TrimRight(strings.ToLower(filepath.Clean(dir)), `\/`)
+	for _, p := range strings.Split(pathValue, ";") {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		n := strings.TrimRight(strings.ToLower(filepath.Clean(p)), `\/`)
+		if n == normDir {
+			return true
+		}
+	}
+	return false
+}
 
-	envStr, _ := syscall.UTF16PtrFromString("Environment")
+// Broadcast WM_SETTINGCHANGE so new terminals pick up PATH immediately
+func broadcastEnvChange() {
 	const HWND_BROADCAST = 0xFFFF
 	const WM_SETTINGCHANGE = 0x001A
 	const SMTO_ABORTIFHUNG = 0x0002
 
-	sendMessageTimeout.Call(
+	envPtr, _ := windows.UTF16PtrFromString("Environment")
+
+	user32 := windows.NewLazySystemDLL("user32.dll")
+	sendMsgTimeout := user32.NewProc("SendMessageTimeoutW")
+
+	sendMsgTimeout.Call(
 		uintptr(HWND_BROADCAST),
 		uintptr(WM_SETTINGCHANGE),
 		0,
-		uintptr(unsafe.Pointer(envStr)),
+		uintptr(unsafe.Pointer(envPtr)),
 		uintptr(SMTO_ABORTIFHUNG),
-		uintptr(5000),
+		uintptr(2000),
 		0,
 	)
+}
+
+// ============================================================================
+// Step 4: Config Generation (TOML format)
+// ============================================================================
+
+func writeConfigTOML(cfgPath, agentName, projectRoot, version string) error {
+	content := fmt.Sprintf(`# GRES B2B Governance Configuration
+# Generated by installer at %s
+
+[agent]
+name = %q
+mcp_enabled = true
+
+[project]
+root = %q
+
+[governance]
+auto_scan = true
+
+[install]
+version = %q
+binary_path = %q
+`,
+		time.Now().Format(time.RFC3339),
+		agentName,
+		filepath.ToSlash(projectRoot),
+		version,
+		filepath.ToSlash(filepath.Join(os.Getenv("LOCALAPPDATA"), InstallSubdir, BinaryName)),
+	)
+
+	return os.WriteFile(cfgPath, []byte(content), 0o644)
+}
+
+// ============================================================================
+// Step 5: Command Execution with Timeout
+// ============================================================================
+
+func runCmdWithTimeout(binPath string, args ...string) error {
+	cmd := exec.Command(binPath, args...)
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &out
+
+	done := make(chan error, 1)
+	go func() {
+		done <- cmd.Run()
+	}()
+
+	select {
+	case err := <-done:
+		if err != nil {
+			output := strings.TrimSpace(out.String())
+			if output == "" {
+				output = "(no output)"
+			}
+			return fmt.Errorf("%v\n\nOutput:\n%s", err, output)
+		}
+		return nil
+	case <-time.After(CmdTimeout):
+		cmd.Process.Kill()
+		output := strings.TrimSpace(out.String())
+		if output == "" {
+			output = "(no output)"
+		}
+		return fmt.Errorf("command timed out after %v\n\nOutput:\n%s", CmdTimeout, output)
+	}
 }
 
 // ============================================================================
 // Helpers
 // ============================================================================
 
-func writeConfig(path string, cfg PersistedConfig) error {
-	b, err := json.MarshalIndent(cfg, "", "  ")
-	if err != nil {
-		return err
-	}
-	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return err
-	}
-	return os.WriteFile(path, b, 0o644)
-}
-
-func showError(msg string) {
-	walk.MsgBox(nil, "GRES B2B Bootstrapper", msg, walk.MsgBoxIconError)
+func nativeError(title, msg string) {
+	windows.MessageBox(0,
+		windows.StringToUTF16Ptr(msg),
+		windows.StringToUTF16Ptr(title),
+		windows.MB_ICONERROR)
 }
 
 func openBrowser(u string) {

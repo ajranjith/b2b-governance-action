@@ -1,30 +1,49 @@
 @echo off
 REM GRES B2B Bootstrapper - Windows Build Script
-REM Builds a native Windows GUI installer (no console window)
+REM Builds a zero-terminal native Windows installer using dlgs dialogs
 
-echo Building GRES B2B Bootstrapper...
+echo.
+echo ========================================
+echo   GRES B2B Bootstrapper - Build
+echo ========================================
+echo.
 
-REM Install rsrc tool if needed (embeds manifest)
-where rsrc >nul 2>&1
+REM Check Go is installed
+where go >nul 2>&1
 if %errorlevel% neq 0 (
-    echo Installing rsrc tool...
-    go install github.com/akavel/rsrc@latest
+    echo ERROR: Go is not installed or not in PATH
+    exit /b 1
 )
 
-REM Generate resource file from manifest
-echo Generating Windows resources...
-rsrc -manifest rsrc.syso.manifest -o rsrc.syso
+REM Download dependencies
+echo Downloading dependencies...
+go mod download
+if %errorlevel% neq 0 (
+    echo ERROR: Failed to download dependencies
+    exit /b 1
+)
 
 REM Build with no console window (-H windowsgui)
-echo Compiling...
+echo.
+echo Compiling (GUI mode, no console window)...
 go build -ldflags="-H windowsgui -s -w" -o gres-b2b-setup.exe .
 
 if exist gres-b2b-setup.exe (
     echo.
-    echo Build successful: gres-b2b-setup.exe
+    echo ========================================
+    echo   Build Successful!
+    echo ========================================
+    echo.
+    echo   Output: gres-b2b-setup.exe
+    echo.
+    echo   Features:
+    echo     - Zero-terminal installer (uses native dialogs)
+    echo     - Agent-agnostic MCP verification
+    echo     - Per-user install (no admin required)
+    echo     - Automatic PATH update
     echo.
 ) else (
     echo.
-    echo Build failed!
+    echo ERROR: Build failed!
     exit /b 1
 )

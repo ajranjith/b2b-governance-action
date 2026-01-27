@@ -425,8 +425,8 @@
         <div class="status-box info">
           <div class="status-icon">💡</div>
           <div class="status-content">
-            <strong>Universal Verification</strong>
-            <p>This test runs the MCP server directly, so even if your agent is misconfigured, we can confirm the server is healthy.</p>
+            <strong>Agent-Agnostic Verification</strong>
+            <p>This test uses protocol-level verification (JSON-RPC handshake), not an HTTP ping. It works with stdio-based and HTTP-based MCP servers alike.</p>
           </div>
         </div>
 
@@ -439,7 +439,7 @@
             <span class="terminal-title">MCP Self-Test</span>
           </div>
           <div class="terminal-body">
-            <div class="terminal-line comment"># Verify MCP server is healthy (agent-agnostic)</div>
+            <div class="terminal-line comment"># Verify MCP server is healthy (agent-agnostic, protocol-level)</div>
             <div class="terminal-line command">gres-b2b mcp selftest</div>
           </div>
           <div class="terminal-actions">
@@ -447,6 +447,14 @@
             <button class="terminal-btn secondary" onclick="runSelftestDemo()">Run Demo</button>
           </div>
         </div>
+
+        <h4 style="margin-top: 1rem;">Expected Output</h4>
+        <div class="terminal" style="margin-top: 0.5rem;">
+          <div class="terminal-body">
+            <div class="terminal-line success">MCP_STATUS: READY (tools=12, handshake=ok)</div>
+          </div>
+        </div>
+        <p style="font-size: 0.9rem; color: var(--gray-500); margin-top: 0.5rem;">If MCP fails, you'll see: <code>MCP_STATUS: FAILED (reason)</code></p>
 
         <div class="verification-grid" id="selftest-results">
           <div class="verify-item" id="verify-server">
