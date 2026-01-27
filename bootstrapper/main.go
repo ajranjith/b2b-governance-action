@@ -108,9 +108,8 @@ func main() {
 	// ========================================================================
 	// STEP 2: AGENT SELECT (Input Gate)
 	// ========================================================================
-	selectedAgent, ok, _ := dlgs.List("AI Agent Selection",
-		"Which AI Agent are you using?", AgentOptions)
-	if !ok || strings.TrimSpace(selectedAgent) == "" {
+	selectedAgent := selectAgent()
+	if selectedAgent == "" {
 		dlgs.Error("Required", "You must select an AI agent to continue.")
 		os.Exit(1)
 	}
@@ -524,6 +523,49 @@ func runCmdWithTimeout(binPath string, args ...string) error {
 		}
 		return fmt.Errorf("command timed out after %v\n\nOutput:\n%s", CmdTimeout, output)
 	}
+}
+
+// ============================================================================
+// Step 2: Agent Selection (using Entry dialog for reliability)
+// ============================================================================
+
+func selectAgent() string {
+	// Build numbered options string
+	optionsText := "Which AI Agent are you using?\n\n"
+	for i, agent := range AgentOptions {
+		optionsText += fmt.Sprintf("  %d. %s\n", i+1, agent)
+	}
+	optionsText += "\nEnter the number (1-5):"
+
+	// Use Entry dialog which is more reliable than List
+	input, ok, _ := dlgs.Entry("AI Agent Selection", optionsText, "1")
+	if !ok {
+		return ""
+	}
+
+	input = strings.TrimSpace(input)
+	if input == "" {
+		return ""
+	}
+
+	// Parse the number
+	var num int
+	if _, err := fmt.Sscanf(input, "%d", &num); err != nil {
+		// Try matching by name as fallback
+		for _, agent := range AgentOptions {
+			if strings.EqualFold(input, agent) || strings.HasPrefix(strings.ToLower(agent), strings.ToLower(input)) {
+				return agent
+			}
+		}
+		return ""
+	}
+
+	// Validate range
+	if num < 1 || num > len(AgentOptions) {
+		return ""
+	}
+
+	return AgentOptions[num-1]
 }
 
 // ============================================================================
