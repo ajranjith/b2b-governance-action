@@ -5,7 +5,7 @@ This document specifies all CLI commands for the `gres-b2b` Go binary.
 ## Overview
 
 ```
-gres-b2b [command] [flags]
+gres-b2b <command> [flags]
 ```
 
 ## Commands
@@ -88,20 +88,28 @@ Your AI agent should now be able to connect to this server.
 
 ---
 
-### `--verify` - Run Governance Scan
+### `scan` - Run Governance Scan
 
-Runs a one-time governance scan and outputs results.
+Runs a governance scan on the workspace.
 
 ```bash
-gres-b2b --verify [--workspace=/path] [--config=/path]
+gres-b2b scan [--live] [--workspace=/path] [--config=/path]
 ```
 
 **Flags:**
 | Flag | Default | Description |
 |------|---------|-------------|
+| `--live` | `false` | Open browser with live progress |
 | `--workspace` | `.` | Path to workspace to scan |
 | `--config` | `.b2b/policy.yml` | Path to policy config |
 | `--json` | `false` | Output JSON to stdout |
+
+**With `--live` flag:**
+1. Starts local server on `127.0.0.1` (random free port)
+2. Opens browser automatically to live progress page
+3. Streams scan progress via SSE
+4. Prints URL to terminal: `Live progress: http://127.0.0.1:<port>/progress`
+5. When done, page shows "Open Full Report" button
 
 **Output files:**
 - `.b2b/report.html` - Visual dashboard
@@ -115,45 +123,26 @@ gres-b2b --verify [--workspace=/path] [--config=/path]
 
 ---
 
-### `--setup` - Interactive Live Scan
-
-Opens a browser with live scan progress via SSE.
-
-```bash
-gres-b2b --setup [--port=8765] [--workspace=/path] [--no-browser]
-```
-
-**Flags:**
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--port` | `8765` | SSE server port |
-| `--workspace` | `.` | Path to workspace to scan |
-| `--no-browser` | `false` | Don't auto-open browser |
-
-**Behavior:**
-1. Starts HTTP server with SSE endpoint
-2. Opens `http://localhost:{port}/progress.html` in browser
-3. Streams scan progress events
-4. Shows final RED/AMBER/GREEN results
-
-See [SETUP-MODE.md](SETUP-MODE.md) for SSE event specifications.
-
----
-
-### `--fix` - Auto-Fix Loop
+### `fix` - Auto-Fix Loop
 
 Runs scan → fix → re-scan loop until all checks pass or max iterations reached.
 
 ```bash
-gres-b2b --fix [--max-iterations=10] [--workspace=/path]
+gres-b2b fix [--live] [--max-iterations=10] [--workspace=/path]
 ```
 
 **Flags:**
 | Flag | Default | Description |
 |------|---------|-------------|
+| `--live` | `false` | Open browser with live progress |
 | `--max-iterations` | `10` | Maximum fix iterations |
 | `--workspace` | `.` | Path to workspace |
 | `--dry-run` | `false` | Show fixes without applying |
+
+**With `--live` flag:**
+- Same as `scan --live` but shows iteration timeline
+- Each iteration displays RED/AMBER/GREEN counts
+- Progress updates in real-time
 
 **Stop conditions:**
 - All checks are GREEN
@@ -167,12 +156,12 @@ gres-b2b --fix [--max-iterations=10] [--workspace=/path]
 
 ---
 
-### `--watch` - Continuous Watch Mode
+### `watch` - Continuous Watch Mode
 
 Watches for file changes and re-scans automatically.
 
 ```bash
-gres-b2b --watch [--workspace=/path] [--debounce=1000]
+gres-b2b watch [--workspace=/path] [--debounce=1000]
 ```
 
 **Flags:**
@@ -183,12 +172,12 @@ gres-b2b --watch [--workspace=/path] [--debounce=1000]
 
 ---
 
-### `--shadow` - Shadow Mode
+### `shadow` - Shadow Mode
 
 Compares outputs between legacy and new implementations.
 
 ```bash
-gres-b2b --shadow [--legacy=/path] [--new=/path]
+gres-b2b shadow [--legacy=/path] [--new=/path]
 ```
 
 ---
@@ -228,10 +217,28 @@ enabled = true
 | Tool | Description |
 |------|-------------|
 | `doctor()` | Check prerequisites and paths |
-| `scan(workspace?)` | Run governance scan |
-| `fix(workspace?, maxIterations?)` | Run auto-fix loop |
+| `scan(workspace?, live?)` | Run governance scan |
+| `fix(workspace?, maxIterations?, live?)` | Run auto-fix loop |
 | `report(workspace?)` | Get current report summary |
 | `config(key?, value?)` | Get or set configuration |
+
+---
+
+## The `--live` Flag
+
+When you pass `--live` to `scan` or `fix`:
+
+1. **Starts local HTTP server** on `127.0.0.1` with a random available port
+2. **Opens browser automatically** to the progress page
+3. **Streams events via SSE** at `/events`
+4. **Prints URL to terminal** so you can copy it if browser doesn't open:
+   ```
+   Live progress: http://127.0.0.1:52341/progress
+   ```
+5. **Serves progress page locally** (not from GitHub Pages) so SSE works
+6. **Shows "Open Full Report"** button when complete
+
+The progress page is embedded in the binary and served locally - it does NOT load from GitHub Pages during scanning.
 
 ---
 
@@ -241,7 +248,7 @@ enabled = true
 |----------|-------------|
 | `GRES_B2B_WORKSPACE` | Default workspace path |
 | `GRES_B2B_CONFIG` | Default policy config path |
-| `GRES_B2B_PORT` | Default SSE server port |
+| `GRES_B2B_PORT` | Default server port for --live |
 | `GRES_B2B_VERSION` | Override version for dev containers |
 
 ---
@@ -267,17 +274,23 @@ gres-b2b doctor
 gres-b2b mcp selftest
 
 # Run scan with live browser progress
-gres-b2b --setup
+gres-b2b scan --live
 
-# Run scan (CLI only)
-gres-b2b --verify
+# Run scan (CLI only, no browser)
+gres-b2b scan
 
-# Auto-fix until GREEN (max 10 attempts)
-gres-b2b --fix --max-iterations=10
+# Auto-fix until GREEN (max 10 attempts) with live progress
+gres-b2b fix --live --max-iterations=10
+
+# Auto-fix (CLI only)
+gres-b2b fix --max-iterations=5
 
 # Watch mode for development
-gres-b2b --watch
+gres-b2b watch
 
 # Run scan on specific workspace
-gres-b2b --verify --workspace=/path/to/project
+gres-b2b scan --workspace=/path/to/project
+
+# Run scan and output JSON
+gres-b2b scan --json
 ```

@@ -568,13 +568,13 @@
       <!-- Step 5: Run Scan -->
       <div class="step" data-step="5">
         <h2>Step 5: Run Governance Scan</h2>
-        <p>Click "Open Scan Report" to start scanning with live progress in your browser.</p>
+        <p>Copy the command below, paste it into your terminal, and run it.</p>
 
-        <div class="status-box success">
-          <div class="status-icon">🚀</div>
+        <div class="status-box warning">
+          <div class="status-icon">📋</div>
           <div class="status-content">
-            <strong>Live Progress Mode</strong>
-            <p>This opens a browser page that streams scan progress in real-time. You'll see live counters (GREEN/AMBER/RED) and can open the full report when complete.</p>
+            <strong>How This Works</strong>
+            <p>This wizard is a static webpage — it cannot run scans directly. The scan runs via the <code>gres-b2b</code> CLI you execute in your terminal.</p>
           </div>
         </div>
 
@@ -583,21 +583,45 @@
             <span class="terminal-dot red"></span>
             <span class="terminal-dot yellow"></span>
             <span class="terminal-dot green"></span>
-            <span class="terminal-title">Start Live Scan</span>
+            <span class="terminal-title" id="scan-terminal-title">PowerShell / Terminal</span>
           </div>
           <div class="terminal-body">
-            <div class="terminal-line comment"># Opens browser with live scan progress</div>
-            <div class="terminal-line command" id="scan-command">gres-b2b --setup</div>
+            <div class="terminal-line comment"># Run this in your terminal</div>
+            <div class="terminal-line command" id="scan-command">gres-b2b scan --live</div>
           </div>
           <div class="terminal-actions">
-            <button class="terminal-btn primary" onclick="copyCommand(document.getElementById('scan-command').textContent)">Copy Command</button>
+            <button class="terminal-btn primary" onclick="copyScanCommand()">📋 Copy Scan Command</button>
+          </div>
+        </div>
+
+        <div class="status-box success">
+          <div class="status-icon">✅</div>
+          <div class="status-content">
+            <strong>What Happens When You Run It</strong>
+            <p>
+              1. The CLI starts a local server on <code>127.0.0.1</code><br>
+              2. Your browser opens automatically to a <strong>Live Progress</strong> page<br>
+              3. Progress streams in real-time (GREEN/AMBER/RED counters)<br>
+              4. When done, click "Open Full Report" to view results
+            </p>
+          </div>
+        </div>
+
+        <div class="status-box info">
+          <div class="status-icon">💡</div>
+          <div class="status-content">
+            <strong>If Nothing Opens</strong>
+            <p>
+              Copy the URL printed in your terminal:<br>
+              <code>Live progress: http://127.0.0.1:&lt;port&gt;/progress</code>
+            </p>
           </div>
         </div>
 
         <div class="status-box info">
           <div class="status-icon">📊</div>
           <div class="status-content">
-            <strong>What the Scan Produces</strong>
+            <strong>Output Files</strong>
             <p>
               <code>.b2b/report.html</code> - Visual dashboard<br>
               <code>.b2b/report.json</code> - Machine-readable results<br>
@@ -609,31 +633,24 @@
 
         <div class="button-group">
           <button class="btn btn-secondary" onclick="prevStep()">Back</button>
-          <button class="btn btn-primary" onclick="nextStep()">Continue to Auto-Fix</button>
+          <button class="btn btn-primary" onclick="nextStep()">I Ran the Scan → Continue</button>
         </div>
       </div>
 
       <!-- Step 6: Remediation Loop -->
       <div class="step" data-step="6">
-        <h2>Step 6: Auto-Fix Loop</h2>
-        <p>Automatically iterate: scan → fix → re-scan until all checks pass.</p>
+        <h2>Step 6: Auto-Fix Loop (Optional)</h2>
+        <p>Copy this command to automatically fix issues until all checks pass.</p>
 
         <div class="input-group">
-          <label>
-            <input type="checkbox" id="enable-autofix" onchange="toggleAutofix()" checked>
-            Enable auto-iteration until GREEN (max attempts below)
-          </label>
-        </div>
-
-        <div class="input-group" id="max-iterations-group">
           <label>Maximum Iterations</label>
-          <select id="max-iterations">
+          <select id="max-iterations" onchange="updateAutofixCommand()">
             <option value="3">3 iterations</option>
             <option value="5">5 iterations</option>
             <option value="10" selected>10 iterations</option>
             <option value="20">20 iterations</option>
           </select>
-          <div class="hint">Stops automatically when all GREEN or max reached</div>
+          <div class="hint">Stops when all GREEN or max reached</div>
         </div>
 
         <div class="terminal">
@@ -641,14 +658,26 @@
             <span class="terminal-dot red"></span>
             <span class="terminal-dot yellow"></span>
             <span class="terminal-dot green"></span>
-            <span class="terminal-title">Auto-Fix Command</span>
+            <span class="terminal-title">PowerShell / Terminal</span>
           </div>
           <div class="terminal-body">
-            <div class="terminal-line comment"># Run scan → fix → re-scan loop</div>
-            <div class="terminal-line command" id="autofix-command">gres-b2b --fix --max-iterations=10</div>
+            <div class="terminal-line comment"># Copy and run in your terminal</div>
+            <div class="terminal-line command" id="autofix-command">gres-b2b fix --live --max-iterations=10</div>
           </div>
           <div class="terminal-actions">
-            <button class="terminal-btn primary" onclick="copyAutofixCommand()">Copy Command</button>
+            <button class="terminal-btn primary" onclick="copyAutofixCommand()">📋 Copy Auto-Fix Command</button>
+          </div>
+        </div>
+
+        <div class="status-box success">
+          <div class="status-icon">✅</div>
+          <div class="status-content">
+            <strong>What Happens</strong>
+            <p>
+              1. Browser opens with live progress (same as scan)<br>
+              2. Each iteration: scan → fix issues → re-scan<br>
+              3. Stops when all GREEN or max iterations reached
+            </p>
           </div>
         </div>
 
@@ -754,11 +783,11 @@
             <div class="terminal-line comment"># Verify MCP server health</div>
             <div class="terminal-line command">gres-b2b mcp selftest</div>
             <div class="terminal-line comment"># Run scan with live browser progress</div>
-            <div class="terminal-line command">gres-b2b --setup</div>
+            <div class="terminal-line command">gres-b2b scan --live</div>
             <div class="terminal-line comment"># Run scan (CLI output only)</div>
-            <div class="terminal-line command">gres-b2b --verify</div>
-            <div class="terminal-line comment"># Auto-fix loop</div>
-            <div class="terminal-line command">gres-b2b --fix --max-iterations=10</div>
+            <div class="terminal-line command">gres-b2b scan</div>
+            <div class="terminal-line comment"># Auto-fix loop with live progress</div>
+            <div class="terminal-line command">gres-b2b fix --live --max-iterations=10</div>
           </div>
         </div>
 
@@ -1327,20 +1356,15 @@ EOF</div>
       }
     }
 
-    function toggleAutofix() {
-      const enabled = document.getElementById('enable-autofix').checked;
-      document.getElementById('max-iterations-group').style.display = enabled ? 'block' : 'none';
-      updateAutofixCommand();
-    }
-
     function updateAutofixCommand() {
-      const enabled = document.getElementById('enable-autofix').checked;
       const max = document.getElementById('max-iterations').value;
-      const cmd = enabled ? `gres-b2b --fix --max-iterations=${max}` : 'gres-b2b --verify';
+      const cmd = `gres-b2b fix --live --max-iterations=${max}`;
       document.getElementById('autofix-command').textContent = cmd;
     }
 
-    document.getElementById('max-iterations').addEventListener('change', updateAutofixCommand);
+    function copyScanCommand() {
+      copyToClipboard(document.getElementById('scan-command').textContent);
+    }
 
     function copyCommand(cmd) {
       copyToClipboard(cmd);
