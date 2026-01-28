@@ -1,14 +1,22 @@
+/* ============================================================================
+   GRES B2B Setup Wizard - Cyber Minimalist Theme
+   ============================================================================ */
+
 :root {
-  --primary: #2563eb;
-  --primary-dark: #1d4ed8;
+  --bg-dark: #0f1115;
+  --bg-darker: #0a0b0d;
+  --panel-bg: rgba(25, 27, 33, 0.85);
+  --panel-border: rgba(255, 255, 255, 0.08);
+  --accent-blue: #00d2ff;
+  --accent-purple: #7c3aed;
+  --text-main: #e0e6ed;
+  --text-muted: #64748b;
+  --text-dim: #475569;
   --success: #10b981;
   --warning: #f59e0b;
   --error: #ef4444;
-  --bg: #f8fafc;
-  --card-bg: #ffffff;
-  --text: #1e293b;
-  --text-muted: #64748b;
-  --border: #e2e8f0;
+  --glow-blue: rgba(0, 210, 255, 0.3);
+  --glow-success: rgba(16, 185, 129, 0.3);
 }
 
 * {
@@ -18,109 +26,212 @@
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  background: var(--bg);
-  color: var(--text);
+  background: var(--bg-dark);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  color: var(--text-main);
   line-height: 1.5;
   min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  overflow: hidden;
 }
 
+/* ============================================================================
+   Wizard Container
+   ============================================================================ */
+
 .wizard {
-  background: var(--card-bg);
-  border-radius: 16px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
-  width: 100%;
-  max-width: 560px;
-  min-height: 500px;
+  height: 100vh;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
-  margin: 20px;
+  background: linear-gradient(180deg, var(--bg-dark) 0%, var(--bg-darker) 100%);
 }
 
 .wizard-header {
-  background: linear-gradient(135deg, var(--primary), var(--primary-dark));
-  color: white;
-  padding: 24px 32px;
+  padding: 24px 32px 16px;
   text-align: center;
+  border-bottom: 1px solid var(--panel-border);
 }
 
 .wizard-header h1 {
-  font-size: 1.5rem;
+  font-size: 1.125rem;
   font-weight: 600;
-  margin-bottom: 4px;
+  color: var(--text-main);
+  letter-spacing: 0.5px;
 }
 
 .wizard-header .subtitle {
-  opacity: 0.9;
-  font-size: 0.9rem;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  margin-top: 4px;
 }
 
 .wizard-content {
   flex: 1;
-  padding: 32px;
+  padding: 24px 32px;
   overflow-y: auto;
 }
 
+.wizard-footer {
+  padding: 12px 24px;
+  border-top: 1px solid var(--panel-border);
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.6875rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+/* ============================================================================
+   Steps
+   ============================================================================ */
+
 .step {
   display: none;
-  animation: fadeIn 0.3s ease;
+  animation: fadeSlideIn 0.4s ease;
 }
 
 .step.active {
   display: block;
 }
 
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-.step-icon {
-  width: 64px;
-  height: 64px;
-  margin: 0 auto 20px;
-  background: var(--primary);
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-}
-
-.step-icon svg {
-  width: 32px;
-  height: 32px;
-}
-
-.step-icon.success {
-  background: var(--success);
-}
-
-.step-icon.error {
-  background: var(--error);
+@keyframes fadeSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .step h2 {
   font-size: 1.25rem;
+  font-weight: 600;
   text-align: center;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
 }
 
 .step > p {
   text-align: center;
   color: var(--text-muted);
+  font-size: 0.875rem;
   margin-bottom: 24px;
 }
 
-.checklist {
-  background: var(--bg);
+/* ============================================================================
+   Step Icon
+   ============================================================================ */
+
+.step-icon {
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 20px;
+  background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 30px var(--glow-blue);
+}
+
+.step-icon svg {
+  width: 28px;
+  height: 28px;
+  color: white;
+}
+
+.step-icon.success {
+  background: var(--success);
+  box-shadow: 0 0 30px var(--glow-success);
+}
+
+.step-icon.error {
+  background: var(--error);
+  box-shadow: 0 0 30px rgba(239, 68, 68, 0.3);
+}
+
+/* ============================================================================
+   Buttons
+   ============================================================================ */
+
+.step-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 28px;
+}
+
+.btn {
+  padding: 12px 28px;
   border-radius: 8px;
-  padding: 16px;
-  margin-bottom: 16px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--accent-blue), #0088cc);
+  color: white;
+  box-shadow: 0 4px 15px rgba(0, 210, 255, 0.3);
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 210, 255, 0.4);
+}
+
+.btn-primary:disabled {
+  background: #2d3139;
+  color: #555;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+
+.btn-secondary {
+  background: var(--panel-bg);
+  color: var(--text-muted);
+  border: 1px solid var(--panel-border);
+}
+
+.btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-main);
+}
+
+.btn-danger {
+  background: rgba(239, 68, 68, 0.2);
+  color: var(--error);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.btn-danger:hover {
+  background: rgba(239, 68, 68, 0.3);
+}
+
+/* ============================================================================
+   Cards & Panels
+   ============================================================================ */
+
+.card {
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  padding: 20px;
+  backdrop-filter: blur(12px);
+}
+
+.checklist {
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  padding: 16px 20px;
+  margin-bottom: 20px;
 }
 
 .check-item {
@@ -128,275 +239,379 @@ body {
   align-items: center;
   gap: 12px;
   padding: 8px 0;
+  font-size: 0.875rem;
 }
 
 .check-icon {
-  color: var(--success);
+  color: var(--accent-blue);
   font-weight: bold;
+  font-size: 1rem;
 }
 
-.note {
-  font-size: 0.875rem;
-  color: var(--text-muted);
-  text-align: center;
-}
+/* ============================================================================
+   Agent Selection
+   ============================================================================ */
 
-.step-actions {
-  display: flex;
-  gap: 12px;
-  justify-content: center;
-  margin-top: 24px;
-}
-
-.btn {
-  padding: 12px 24px;
-  border-radius: 8px;
-  font-size: 0.9375rem;
-  font-weight: 600;
-  cursor: pointer;
-  border: none;
-  transition: all 0.2s;
-}
-
-.btn-primary {
-  background: var(--primary);
-  color: white;
-}
-
-.btn-primary:hover {
-  background: var(--primary-dark);
-}
-
-.btn-primary:disabled {
-  background: #94a3b8;
-  cursor: not-allowed;
-}
-
-.btn-secondary {
-  background: var(--bg);
-  color: var(--text);
-  border: 1px solid var(--border);
-}
-
-.btn-secondary:hover {
-  background: var(--border);
-}
-
-/* Agent Selection */
-.agent-options {
+.agent-list {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  margin-bottom: 20px;
 }
 
-.agent-option {
+.agent-item {
   display: flex;
   align-items: center;
-  padding: 12px 16px;
-  background: var(--bg);
-  border: 2px solid transparent;
-  border-radius: 8px;
+  padding: 14px 16px;
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
   cursor: pointer;
   transition: all 0.2s;
 }
 
-.agent-option:hover {
-  border-color: var(--primary);
+.agent-item:hover {
+  border-color: var(--accent-blue);
+  background: rgba(0, 210, 255, 0.05);
 }
 
-.agent-option input {
+.agent-item.selected {
+  border-color: var(--accent-blue);
+  box-shadow: 0 0 0 1px var(--accent-blue), 0 0 20px var(--glow-blue);
+}
+
+.agent-item input[type="checkbox"] {
   margin-right: 12px;
+  accent-color: var(--accent-blue);
 }
 
-.agent-option input:checked + .agent-label {
-  color: var(--primary);
-  font-weight: 600;
-}
-
-/* Folder Picker */
-.folder-picker {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 12px;
-}
-
-.folder-picker input {
+.agent-info {
   flex: 1;
-  padding: 12px 16px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
+}
+
+.agent-name {
+  font-weight: 500;
   font-size: 0.9375rem;
-  background: var(--bg);
 }
 
-.hint {
-  font-size: 0.8125rem;
+.agent-source {
+  font-size: 0.75rem;
   color: var(--text-muted);
-  text-align: center;
+  margin-top: 2px;
 }
 
-/* Progress */
-.progress-container {
+.agent-badge {
+  font-size: 0.625rem;
+  padding: 3px 8px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.agent-badge.registry {
+  background: rgba(0, 210, 255, 0.15);
+  color: var(--accent-blue);
+}
+
+.agent-badge.disk {
+  background: rgba(124, 58, 237, 0.15);
+  color: var(--accent-purple);
+}
+
+/* ============================================================================
+   Progress Steps
+   ============================================================================ */
+
+.progress-steps {
+  margin-bottom: 24px;
+}
+
+.progress-step {
+  display: flex;
+  align-items: center;
+  padding: 14px 16px;
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  margin-bottom: 10px;
+  opacity: 0.5;
+  transition: all 0.3s ease;
+}
+
+.progress-step.active {
+  opacity: 1;
+  border-color: var(--accent-blue);
+  transform: translateX(4px);
+}
+
+.progress-step.success {
+  opacity: 1;
+  border-color: var(--success);
+}
+
+.progress-step.error {
+  opacity: 1;
+  border-color: var(--error);
+}
+
+.step-status {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid var(--text-dim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 14px;
+  font-size: 0.75rem;
+  flex-shrink: 0;
+}
+
+.progress-step.active .step-status {
+  border-color: var(--accent-blue);
+  box-shadow: 0 0 12px var(--glow-blue);
+  animation: pulse 2s infinite;
+}
+
+.progress-step.success .step-status {
+  border-color: var(--success);
+  background: var(--success);
+  color: white;
+}
+
+.progress-step.error .step-status {
+  border-color: var(--error);
+  background: var(--error);
+  color: white;
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.05); opacity: 0.7; }
+}
+
+.step-content {
+  flex: 1;
+}
+
+.step-title {
+  font-weight: 500;
+  font-size: 0.9375rem;
+}
+
+.step-detail {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* ============================================================================
+   Progress Bar
+   ============================================================================ */
+
+.progress-bar-container {
   margin-bottom: 20px;
 }
 
 .progress-bar {
-  height: 8px;
-  background: var(--border);
-  border-radius: 4px;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
   overflow: hidden;
-  margin-bottom: 12px;
 }
 
 .progress-fill {
   height: 100%;
-  background: var(--primary);
-  border-radius: 4px;
+  background: linear-gradient(90deg, var(--accent-blue), var(--accent-purple));
+  border-radius: 3px;
   transition: width 0.3s ease;
   width: 0%;
 }
 
-.progress-status {
-  text-align: center;
-  color: var(--text-muted);
-  font-size: 0.875rem;
-}
-
-.install-log {
-  background: #1e293b;
-  color: #e2e8f0;
-  padding: 12px;
-  border-radius: 8px;
-  font-family: 'SFMono-Regular', Consolas, monospace;
-  font-size: 0.75rem;
-  max-height: 150px;
-  overflow-y: auto;
-  white-space: pre-wrap;
-}
-
-/* Verification Tests */
-.verify-tests {
-  margin-bottom: 20px;
-}
-
-.verify-test {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 16px;
-  background: var(--bg);
-  border-radius: 8px;
-  margin-bottom: 8px;
-}
-
-.test-status {
-  font-size: 1.25rem;
-}
-
-.test-status.pending {
-  color: var(--text-muted);
-}
-
-.test-status.running {
-  color: var(--warning);
-  animation: pulse 1s infinite;
-}
-
-.test-status.success {
-  color: var(--success);
-}
-
-.test-status.error {
-  color: var(--error);
-}
-
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
-}
-
-.test-name {
-  flex: 1;
-  font-weight: 500;
-}
-
-.test-detail {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-}
-
-.verify-result {
-  text-align: center;
-  padding: 16px;
-  border-radius: 8px;
-  font-weight: 500;
-}
-
-.verify-result.success {
-  background: #d1fae5;
-  color: #065f46;
-}
-
-.verify-result.error {
-  background: #fee2e2;
-  color: #991b1b;
-}
-
-/* Summary */
-.summary-box {
-  background: var(--bg);
-  border-radius: 8px;
-  padding: 16px;
-  margin-bottom: 16px;
-}
-
-.summary-item {
-  display: flex;
-  padding: 8px 0;
-  border-bottom: 1px solid var(--border);
-}
-
-.summary-item:last-child {
-  border-bottom: none;
-}
-
-.summary-label {
-  width: 80px;
-  color: var(--text-muted);
-  font-size: 0.875rem;
-}
-
-.summary-value {
-  flex: 1;
-  font-weight: 500;
-  font-size: 0.875rem;
-  word-break: break-all;
-}
-
-/* Error */
-.error-message {
-  color: var(--error);
-  margin-bottom: 16px;
-}
-
-.error-details {
-  background: var(--bg);
-  padding: 12px;
-  border-radius: 8px;
-  font-family: monospace;
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  max-height: 120px;
-  overflow-y: auto;
-  white-space: pre-wrap;
-}
-
-/* Footer */
-.wizard-footer {
-  padding: 12px 24px;
-  border-top: 1px solid var(--border);
+.progress-label {
   display: flex;
   justify-content: space-between;
   font-size: 0.75rem;
   color: var(--text-muted);
+  margin-top: 8px;
 }
+
+/* ============================================================================
+   Zombie Guard
+   ============================================================================ */
+
+.zombie-alert {
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: 10px;
+  padding: 16px;
+  text-align: center;
+}
+
+.zombie-alert h3 {
+  color: var(--warning);
+  font-size: 0.9375rem;
+  margin-bottom: 8px;
+}
+
+.zombie-alert p {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+.spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--panel-border);
+  border-top-color: var(--accent-blue);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 12px auto;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ============================================================================
+   Success Screen
+   ============================================================================ */
+
+.success-ring {
+  width: 72px;
+  height: 72px;
+  background: var(--success);
+  border-radius: 50%;
+  margin: 0 auto 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 40px var(--glow-success);
+  animation: successPop 0.5s ease;
+}
+
+@keyframes successPop {
+  0% { transform: scale(0); }
+  50% { transform: scale(1.1); }
+  100% { transform: scale(1); }
+}
+
+.success-ring svg {
+  width: 36px;
+  height: 36px;
+  color: white;
+}
+
+.gradient-text {
+  background: linear-gradient(135deg, var(--accent-blue), var(--success));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.status-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.status-item {
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+
+.status-label {
+  font-size: 0.6875rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+
+.status-value {
+  font-size: 0.875rem;
+  font-weight: 500;
+  word-break: break-all;
+}
+
+.status-badge {
+  display: inline-block;
+  font-size: 0.6875rem;
+  padding: 3px 8px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.status-badge.active {
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--success);
+}
+
+.status-badge.running {
+  background: rgba(0, 210, 255, 0.15);
+  color: var(--accent-blue);
+  animation: flash 1.5s infinite;
+}
+
+@keyframes flash {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* ============================================================================
+   Error Screen
+   ============================================================================ */
+
+.error-box {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 20px;
+}
+
+.error-title {
+  color: var(--error);
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.error-message {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+}
+
+.error-details {
+  background: var(--bg-darker);
+  padding: 12px;
+  border-radius: 6px;
+  font-family: 'SFMono-Regular', Consolas, monospace;
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  max-height: 100px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  margin-top: 12px;
+}
+
+/* ============================================================================
+   Utilities
+   ============================================================================ */
+
+.note {
+  font-size: 0.8125rem;
+  color: var(--text-dim);
+  text-align: center;
+}
+
+.mt-4 { margin-top: 16px; }
+.mb-4 { margin-bottom: 16px; }
+.text-center { text-align: center; }
+.text-muted { color: var(--text-muted); }
+.text-success { color: var(--success); }
+.text-error { color: var(--error); }

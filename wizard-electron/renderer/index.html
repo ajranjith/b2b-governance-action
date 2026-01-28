@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline';">
-  <title>GRES B2B Setup Wizard</title>
+  <title>GRES B2B Setup</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -23,146 +23,150 @@
           </svg>
         </div>
         <h2>Welcome</h2>
-        <p>This wizard will install and configure GRES B2B Governance tools.</p>
+        <p>Set up GRES B2B Governance for your AI agent</p>
         <div class="checklist">
-          <div class="check-item">
-            <span class="check-icon">&#10003;</span>
-            <span>Download gres-b2b CLI</span>
-          </div>
-          <div class="check-item">
-            <span class="check-icon">&#10003;</span>
-            <span>Add to system PATH</span>
-          </div>
-          <div class="check-item">
-            <span class="check-icon">&#10003;</span>
-            <span>Configure your AI agent</span>
-          </div>
-          <div class="check-item">
-            <span class="check-icon">&#10003;</span>
-            <span>Verify MCP connection</span>
-          </div>
+          <div class="check-item"><span class="check-icon">&#10003;</span><span>Auto-detect AI agents</span></div>
+          <div class="check-item"><span class="check-icon">&#10003;</span><span>Download & verify binary</span></div>
+          <div class="check-item"><span class="check-icon">&#10003;</span><span>Configure MCP connection</span></div>
+          <div class="check-item"><span class="check-icon">&#10003;</span><span>Verify handshake</span></div>
         </div>
-        <p class="note">No admin rights required.</p>
+        <p class="note">No admin rights required</p>
         <div class="step-actions">
-          <button class="btn btn-primary" onclick="wizard.next()">Get Started</button>
+          <button class="btn btn-primary" onclick="wizard.start()">Get Started</button>
         </div>
       </section>
 
-      <!-- Step 2: Agent Selection -->
-      <section id="step-agent" class="step">
-        <h2>Select Your AI Agent</h2>
-        <p>Which AI agent will you use with GRES B2B?</p>
-        <div class="agent-options">
-          <label class="agent-option">
-            <input type="radio" name="agent" value="Claude Desktop" checked>
-            <span class="agent-label">Claude Desktop</span>
-          </label>
-          <label class="agent-option">
-            <input type="radio" name="agent" value="Cursor">
-            <span class="agent-label">Cursor</span>
-          </label>
-          <label class="agent-option">
-            <input type="radio" name="agent" value="VS Code (Windsurf)">
-            <span class="agent-label">VS Code (Windsurf)</span>
-          </label>
-          <label class="agent-option">
-            <input type="radio" name="agent" value="Codex CLI">
-            <span class="agent-label">Codex CLI</span>
-          </label>
-          <label class="agent-option">
-            <input type="radio" name="agent" value="Custom MCP">
-            <span class="agent-label">Custom MCP</span>
-          </label>
-        </div>
+      <!-- Step 2: Detect Agents -->
+      <section id="step-detect" class="step">
+        <h2>Detecting AI Agents</h2>
+        <p>Scanning your system for compatible agents...</p>
+        <div id="agentList" class="agent-list"></div>
+        <div id="detectStatus" class="note"></div>
         <div class="step-actions">
-          <button class="btn btn-secondary" onclick="wizard.prev()">Back</button>
-          <button class="btn btn-primary" onclick="wizard.next()">Next</button>
+          <button class="btn btn-secondary" onclick="wizard.back()">Back</button>
+          <button class="btn btn-primary" id="btnDetectNext" onclick="wizard.selectAgents()" disabled>Configure Selected</button>
         </div>
       </section>
 
-      <!-- Step 3: Project Selection -->
-      <section id="step-project" class="step">
-        <h2>Select Project Folder</h2>
-        <p>Choose the project folder where governance will be applied.</p>
-        <div class="folder-picker">
-          <input type="text" id="projectPath" placeholder="Click to select folder..." readonly>
-          <button class="btn btn-secondary" onclick="wizard.selectFolder()">Browse...</button>
-        </div>
-        <p class="hint">This can be changed later in the config file.</p>
-        <div class="step-actions">
-          <button class="btn btn-secondary" onclick="wizard.prev()">Back</button>
-          <button class="btn btn-primary" onclick="wizard.next()" id="btnProjectNext">Next</button>
-        </div>
-      </section>
-
-      <!-- Step 4: Installation -->
+      <!-- Step 3: Install -->
       <section id="step-install" class="step">
-        <h2>Installing</h2>
-        <p>Please wait while we set up GRES B2B...</p>
-        <div class="progress-container">
-          <div class="progress-bar">
-            <div class="progress-fill" id="progressFill"></div>
+        <h2>Configuring Environment</h2>
+        <p>Setting up the GRES B2B bridge...</p>
+        <div class="progress-steps" id="installSteps">
+          <div class="progress-step" id="step-download">
+            <div class="step-status"></div>
+            <div class="step-content">
+              <div class="step-title">Downloading Binary</div>
+              <div class="step-detail" id="detail-download">Waiting...</div>
+            </div>
           </div>
-          <p class="progress-status" id="progressStatus">Preparing...</p>
+          <div class="progress-step" id="step-checksum">
+            <div class="step-status"></div>
+            <div class="step-content">
+              <div class="step-title">Verifying Integrity</div>
+              <div class="step-detail" id="detail-checksum">Waiting...</div>
+            </div>
+          </div>
+          <div class="progress-step" id="step-path">
+            <div class="step-status"></div>
+            <div class="step-content">
+              <div class="step-title">Configuring PATH</div>
+              <div class="step-detail" id="detail-path">Waiting...</div>
+            </div>
+          </div>
+          <div class="progress-step" id="step-config">
+            <div class="step-status"></div>
+            <div class="step-content">
+              <div class="step-title">Writing Agent Config</div>
+              <div class="step-detail" id="detail-config">Waiting...</div>
+            </div>
+          </div>
         </div>
-        <div class="install-log" id="installLog"></div>
+        <div class="progress-bar-container">
+          <div class="progress-bar"><div class="progress-fill" id="installProgress"></div></div>
+          <div class="progress-label">
+            <span id="installStatus">Preparing...</span>
+            <span id="installPercent">0%</span>
+          </div>
+        </div>
       </section>
 
-      <!-- Step 5: Verification -->
+      <!-- Step 4: Zombie Guard -->
+      <section id="step-zombie" class="step">
+        <h2>Restart Required</h2>
+        <p>Please close your AI agent to apply changes</p>
+        <div class="zombie-alert">
+          <h3 id="zombieAgent">Waiting for Agent</h3>
+          <p>Close <strong id="zombieProcess">Agent</strong> completely (check system tray)</p>
+          <div class="spinner"></div>
+          <p class="note" id="zombieStatus">Checking...</p>
+        </div>
+        <div class="step-actions mt-4">
+          <button class="btn btn-danger" id="btnForceKill" onclick="wizard.forceKill()">Force Close Agent</button>
+        </div>
+      </section>
+
+      <!-- Step 5: Verify -->
       <section id="step-verify" class="step">
         <h2>Verification</h2>
-        <p>Running validation tests...</p>
-        <div class="verify-tests">
-          <div class="verify-test" id="test-binary">
-            <span class="test-status pending">&#9679;</span>
-            <span class="test-name">Binary Integrity Test</span>
-            <span class="test-detail" id="test-binary-detail"></span>
+        <p>Running self-tests...</p>
+        <div class="progress-steps" id="verifySteps">
+          <div class="progress-step" id="verify-binary">
+            <div class="step-status"></div>
+            <div class="step-content">
+              <div class="step-title">Binary Test</div>
+              <div class="step-detail" id="verify-binary-detail">Waiting...</div>
+            </div>
           </div>
-          <div class="verify-test" id="test-path">
-            <span class="test-status pending">&#9679;</span>
-            <span class="test-name">PATH Environment Test</span>
-            <span class="test-detail" id="test-path-detail"></span>
+          <div class="progress-step" id="verify-path">
+            <div class="step-status"></div>
+            <div class="step-content">
+              <div class="step-title">PATH Test</div>
+              <div class="step-detail" id="verify-path-detail">Waiting...</div>
+            </div>
           </div>
-          <div class="verify-test" id="test-mcp">
-            <span class="test-status pending">&#9679;</span>
-            <span class="test-name">MCP Connection Test</span>
-            <span class="test-detail" id="test-mcp-detail"></span>
+          <div class="progress-step" id="verify-mcp">
+            <div class="step-status"></div>
+            <div class="step-content">
+              <div class="step-title">MCP Handshake</div>
+              <div class="step-detail" id="verify-mcp-detail">Waiting...</div>
+            </div>
           </div>
         </div>
-        <div class="verify-result" id="verifyResult"></div>
+        <div id="verifyResult"></div>
       </section>
 
-      <!-- Step 6: Complete -->
-      <section id="step-complete" class="step">
-        <div class="step-icon success">
+      <!-- Step 6: Success -->
+      <section id="step-success" class="step">
+        <div class="success-ring">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-            <polyline points="22 4 12 14.01 9 11.01"/>
+            <polyline points="20 6 9 17 4 12"/>
           </svg>
         </div>
-        <h2>Setup Complete!</h2>
-        <p>GRES B2B Governance is installed and verified.</p>
-        <div class="summary-box">
-          <div class="summary-item">
-            <span class="summary-label">Binary:</span>
-            <span class="summary-value" id="summaryBinary"></span>
+        <h2 class="gradient-text">Governance Active</h2>
+        <p>Your environment is configured and verified</p>
+        <div class="status-grid">
+          <div class="status-item">
+            <div class="status-label">MCP Bridge</div>
+            <div class="status-value"><span class="status-badge active">Verified</span></div>
           </div>
-          <div class="summary-item">
-            <span class="summary-label">Version:</span>
-            <span class="summary-value" id="summaryVersion"></span>
+          <div class="status-item">
+            <div class="status-label">Agent</div>
+            <div class="status-value" id="successAgent">-</div>
           </div>
-          <div class="summary-item">
-            <span class="summary-label">Agent:</span>
-            <span class="summary-value" id="summaryAgent"></span>
+          <div class="status-item">
+            <div class="status-label">Version</div>
+            <div class="status-value" id="successVersion">-</div>
           </div>
-          <div class="summary-item">
-            <span class="summary-label">Project:</span>
-            <span class="summary-value" id="summaryProject"></span>
+          <div class="status-item">
+            <div class="status-label">Config</div>
+            <div class="status-value" id="successConfig">-</div>
           </div>
         </div>
+        <p class="note">A desktop shortcut has been created</p>
         <div class="step-actions">
-          <button class="btn btn-secondary" onclick="wizard.openDocs()">View Documentation</button>
-          <button class="btn btn-primary" onclick="wizard.finish()">Open Dashboard</button>
+          <button class="btn btn-secondary" onclick="wizard.openDocs()">Documentation</button>
+          <button class="btn btn-primary" onclick="wizard.launchDashboard()">Launch Dashboard</button>
         </div>
       </section>
 
@@ -176,8 +180,11 @@
           </svg>
         </div>
         <h2>Setup Failed</h2>
-        <p class="error-message" id="errorMessage"></p>
-        <div class="error-details" id="errorDetails"></div>
+        <div class="error-box">
+          <div class="error-title" id="errorTitle">Error</div>
+          <div class="error-message" id="errorMessage"></div>
+          <div class="error-details" id="errorDetails"></div>
+        </div>
         <div class="step-actions">
           <button class="btn btn-secondary" onclick="wizard.retry()">Try Again</button>
           <button class="btn btn-primary" onclick="wizard.openDocs()">Get Help</button>
@@ -187,7 +194,7 @@
 
     <footer class="wizard-footer">
       <span>GRES B2B Governance</span>
-      <span class="version" id="wizardVersion">v1.0.0</span>
+      <span id="wizardVersion">v1.0.0</span>
     </footer>
   </div>
 
