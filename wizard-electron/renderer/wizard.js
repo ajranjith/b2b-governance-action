@@ -499,14 +499,14 @@ const wizard = {
 
     this.showStep("success");
 
+    // Create desktop shortcut
     try {
-      await window.gres.util.createShortcut({
-        name: "GRES B2B Dashboard",
-        target: this.data.binaryPath,
-        args: ["dashboard"],
-      });
+      const result = await window.gres.install.createShortcut();
+      if (result.success) {
+        console.log("Desktop shortcut created:", result.path);
+      }
     } catch (err) {
-      console.warn("Shortcut failed:", err);
+      console.warn("Shortcut creation failed:", err);
     }
   },
 
@@ -515,17 +515,11 @@ const wizard = {
   // ========================================================================
   async launchDashboard() {
     try {
-      const portResult = await window.gres.scan.findPort(8080);
-      if (portResult.success) {
-        const scanResult = await window.gres.scan.startDetached({
-          port: portResult.port,
-          live: true,
-        });
-        await this.sleep(1500);
-        await window.gres.util.openUrl(`http://localhost:${portResult.port}`);
-      }
+      // Open the onboarding dashboard URL
+      await window.gres.install.openDashboard();
     } catch (err) {
-      window.gres.util.openUrl("http://localhost:8080");
+      // Fallback to opening GitHub docs
+      window.gres.util.openUrl("https://ajranjith.github.io/b2b-governance-action/onboarding/?status=ready");
     }
   },
 
@@ -550,7 +544,7 @@ const wizard = {
   },
 
   openDocs() {
-    window.gres.util.openUrl("https://github.com/ajranjith/b2b-governance-action#readme");
+    window.gres.install.openDocs();
   },
 
   sleep(ms) {

@@ -161,6 +161,21 @@ ipcMain.handle("install:getPaths", async () => {
   };
 });
 
+// Create desktop shortcut
+ipcMain.handle("install:createShortcut", async () => {
+  return download.createDesktopShortcut();
+});
+
+// Open documentation
+ipcMain.handle("install:openDocs", async () => {
+  return download.openDocs();
+});
+
+// Open dashboard/onboarding
+ipcMain.handle("install:openDashboard", async () => {
+  return download.openDashboard();
+});
+
 // ============================================================================
 // Phase 4: Zombie Guard
 // ============================================================================

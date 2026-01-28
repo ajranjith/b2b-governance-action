@@ -30,6 +30,9 @@ contextBridge.exposeInMainWorld("gres", {
     applyPath: () => ipcRenderer.invoke("install:applyPath"),
     getPaths: () => ipcRenderer.invoke("install:getPaths"),
     getReleaseAssets: () => ipcRenderer.invoke("install:getReleaseAssets"),
+    createShortcut: () => ipcRenderer.invoke("install:createShortcut"),
+    openDocs: () => ipcRenderer.invoke("install:openDocs"),
+    openDashboard: () => ipcRenderer.invoke("install:openDashboard"),
 
     // Download progress listener
     onProgress: (callback) => {
