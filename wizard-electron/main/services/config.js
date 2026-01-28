@@ -138,23 +138,30 @@ function setNestedValue(obj, keyPath, value) {
 }
 
 /**
- * Build the GRES server entry for MCP config
+ * Build the GRES server entry for MCP config (JSON)
+ * Uses JSON.stringify internally to ensure correct escaping
  */
 function buildGresEntry() {
-  // Use absolute path to avoid PATH inheritance issues
+  // Use absolute path - JSON.stringify handles escaping when written
   return {
-    command: BINARY_PATH.replace(/\\/g, "\\\\"),
+    command: BINARY_PATH,
     args: ["mcp", "serve"],
   };
 }
 
 /**
- * Build TOML section for GRES
+ * Build TOML section for GRES (Codex-compatible format)
+ * Uses [mcp_servers.gres_b2b] with enabled = true
+ * Single quotes with double backslashes for proper TOML escaping
  */
 function buildGresToml() {
+  // Use single quotes in TOML to avoid escaping issues
+  // Double backslashes for Windows paths
+  const escapedPath = BINARY_PATH.replace(/\\/g, "\\\\");
   return `
-[mcp.servers.gres_b2b]
-command = "${BINARY_PATH.replace(/\\/g, "\\\\")}"
+[mcp_servers.gres_b2b]
+enabled = true
+command = '${escapedPath}'
 args = ["mcp", "serve"]
 `;
 }
@@ -232,6 +239,7 @@ async function writeJsonConfig(agent) {
 
 /**
  * Write config with safe merge (TOML)
+ * Uses Codex-compatible format: [mcp_servers.gres_b2b] with enabled = true
  */
 async function writeTomlConfig(agent) {
   const { configPath } = agent;
@@ -251,14 +259,21 @@ async function writeTomlConfig(agent) {
     content = fs.readFileSync(configPath, "utf8");
   }
 
-  // Step 3: Check if GRES section already exists
-  const gresSection = "[mcp.servers.gres_b2b]";
-  const hasGres = content.includes(gresSection);
+  // Step 3: Check if GRES section already exists (check both old and new format)
+  const gresSectionNew = "[mcp_servers.gres_b2b]";
+  const gresSectionOld = "[mcp.servers.gres_b2b]";
+  const hasGresNew = content.includes(gresSectionNew);
+  const hasGresOld = content.includes(gresSectionOld);
 
-  if (hasGres) {
-    // Update existing section - find and replace
-    const sectionRegex = /\[mcp\.servers\.gres_b2b\][^\[]*(?=\[|$)/s;
+  if (hasGresNew) {
+    // Update existing new-format section
+    const sectionRegex = /\[mcp_servers\.gres_b2b\][^\[]*(?=\[|$)/s;
     content = content.replace(sectionRegex, buildGresToml().trim() + "\n\n");
+  } else if (hasGresOld) {
+    // Remove old format and add new format
+    const sectionRegex = /\[mcp\.servers\.gres_b2b\][^\[]*(?=\[|$)/s;
+    content = content.replace(sectionRegex, "");
+    content = content.trimEnd() + "\n" + buildGresToml();
   } else {
     // Append new section
     content = content.trimEnd() + "\n" + buildGresToml();

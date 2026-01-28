@@ -29,6 +29,7 @@ contextBridge.exposeInMainWorld("gres", {
     verifyChecksum: (opts) => ipcRenderer.invoke("install:verifyChecksum", opts),
     applyPath: () => ipcRenderer.invoke("install:applyPath"),
     getPaths: () => ipcRenderer.invoke("install:getPaths"),
+    getReleaseAssets: () => ipcRenderer.invoke("install:getReleaseAssets"),
 
     // Download progress listener
     onProgress: (callback) => {

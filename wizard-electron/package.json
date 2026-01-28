@@ -7,8 +7,9 @@
   "license": "MIT",
   "scripts": {
     "start": "electron .",
+    "prebuild": "node scripts/fetch-binary.js",
     "build": "electron-builder",
-    "build:win": "electron-builder --win"
+    "build:win": "npm run prebuild && electron-builder --win"
   },
   "dependencies": {
     "node-fetch": "^2.7.0"
@@ -39,6 +40,12 @@
       "main/**/*",
       "renderer/**/*",
       "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "resources/gres-b2b.exe",
+        "to": "gres-b2b.exe"
+      }
     ],
     "publish": {
       "provider": "github",

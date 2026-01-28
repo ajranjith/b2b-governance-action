@@ -100,18 +100,23 @@ const wizard = {
         return;
       }
 
+      // Check if this is a manual fallback
+      const isManualFallback = result.isManualFallback;
+
       // Render agent list with status badges
       agentList.innerHTML = this.detectedAgents
         .map((agent, index) => `
-          <label class="agent-item ${agent.hasGres ? 'configured' : ''} ${!agent.configValid ? 'invalid' : ''}" data-agent="${agent.name}">
+          <label class="agent-item ${agent.hasGres ? 'configured' : ''} ${!agent.configValid ? 'invalid' : ''} ${agent.status === 'MANUAL' ? 'manual' : ''}" data-agent="${agent.name}" data-status="${agent.status || 'DETECTED'}">
             <input type="checkbox" name="agent" value="${agent.name}" data-index="${index}" ${!agent.hasGres ? 'checked' : ''}>
             <div class="agent-info">
-              <div class="agent-name">${agent.name}</div>
+              <div class="agent-name">${agent.name}${agent.status === 'MANUAL' ? ' <span class="text-warning">(Manual)</span>' : ''}</div>
               <div class="agent-source">${agent.configPath}</div>
-              ${!agent.configValid ? `<div class="agent-error">Parse error</div>` : ''}
+              ${!agent.configValid && agent.status !== 'MANUAL' ? `<div class="agent-error">Parse error</div>` : ''}
+              ${agent.status === 'MANUAL' ? `<div class="agent-note">Config will be created at this path</div>` : ''}
             </div>
             <span class="agent-badge ${agent.configType}">${agent.configType.toUpperCase()}</span>
             ${agent.hasGres ? '<span class="agent-badge configured">Configured</span>' : ''}
+            ${agent.status === 'MANUAL' ? '<span class="agent-badge manual">Manual</span>' : ''}
           </label>
         `)
         .join("");
@@ -128,8 +133,12 @@ const wizard = {
 
       this.updateAgentSelection();
 
-      const unconfigured = this.detectedAgents.filter(a => !a.hasGres).length;
-      detectStatus.textContent = `Found ${this.detectedAgents.length} agent(s). ${unconfigured} need configuration.`;
+      if (isManualFallback) {
+        detectStatus.textContent = "No agents auto-detected. Using manual configuration.";
+      } else {
+        const unconfigured = this.detectedAgents.filter(a => !a.hasGres).length;
+        detectStatus.textContent = `Found ${this.detectedAgents.length} agent(s). ${unconfigured} need configuration.`;
+      }
 
     } catch (err) {
       agentList.innerHTML = `<div class="note text-error">Error: ${err.message}</div>`;
@@ -168,10 +177,10 @@ const wizard = {
   },
 
   // ========================================================================
-  // Step 3: Installation
+  // Step 3: Installation (Binary is bundled - no download needed)
   // ========================================================================
   async runInstallation() {
-    const steps = ["download", "checksum", "path", "config"];
+    const steps = ["checksum", "path", "config"];
     const progressFill = document.getElementById("installProgress");
     const progressStatus = document.getElementById("installStatus");
     const progressPercent = document.getElementById("installPercent");
@@ -185,6 +194,7 @@ const wizard = {
     const setStepStatus = (stepId, status, detail) => {
       const stepEl = document.getElementById(`step-${stepId}`);
       const detailEl = document.getElementById(`detail-${stepId}`);
+      if (!stepEl || !detailEl) return;
       stepEl.className = "progress-step " + status;
       if (detail) detailEl.textContent = detail;
       const statusEl = stepEl.querySelector(".step-status");
@@ -202,45 +212,35 @@ const wizard = {
       this.data.installDir = paths.installDir;
       this.data.binaryPath = paths.binaryPath;
 
-      // Step 1: Download binary to %LOCALAPPDATA%\Programs\gres-b2b
-      setStepStatus("download", "active", "Downloading...");
-      setProgress(5, "Downloading from GitHub Releases...");
+      // Step 1: Install bundled binary
+      setStepStatus("checksum", "active", "Installing binary...");
+      setProgress(5, "Installing gres-b2b...");
 
       window.gres.install.onProgress((percent) => {
-        setProgress(5 + Math.floor(percent * 0.2), `Downloading... ${percent}%`);
+        setProgress(5 + Math.floor(percent * 0.35), `Installing... ${percent}%`);
       });
 
-      const downloadResult = await window.gres.install.downloadBinary();
+      const installResult = await window.gres.install.downloadBinary();
       window.gres.install.offProgress();
 
-      if (!downloadResult.success) {
-        throw new Error(downloadResult.error || "Download failed");
+      if (!installResult.success) {
+        throw new Error(installResult.error || "Installation failed");
       }
 
-      this.data.version = downloadResult.version;
-      setStepStatus("download", "success", `v${downloadResult.version}`);
+      this.data.version = installResult.version;
+      setStepStatus("checksum", "success", `v${installResult.version}`);
 
-      // Step 2: Verify checksum
-      setStepStatus("checksum", "active", "Verifying...");
-      setProgress(30, "Verifying binary integrity...");
-
-      const checksumResult = await window.gres.install.verifyChecksum();
-      if (!checksumResult.success) {
-        throw new Error(checksumResult.error || "Checksum failed");
-      }
-      setStepStatus("checksum", "success", (checksumResult.checksum || "").substring(0, 12) + "...");
-
-      // Step 3: Configure PATH
+      // Step 2: Configure PATH
       setStepStatus("path", "active", "Updating PATH...");
       setProgress(50, "Configuring system PATH...");
 
       const pathResult = await window.gres.install.applyPath();
       if (!pathResult.success) {
-        throw new Error(pathResult.error || "PATH failed");
+        throw new Error(pathResult.error || "PATH configuration failed");
       }
       setStepStatus("path", "success", pathResult.alreadyInPath ? "Already set" : "Updated");
 
-      // Step 4: Write agent configs (safe merge with backup)
+      // Step 3: Write agent configs (safe merge with backup)
       setStepStatus("config", "active", "Configuring agents...");
       setProgress(70, "Writing agent configurations...");
 

@@ -135,6 +135,11 @@ ipcMain.handle("install:downloadBinary", async (event, opts) => {
   });
 });
 
+// Get release assets for manual selection
+ipcMain.handle("install:getReleaseAssets", async () => {
+  return download.getReleaseAssets();
+});
+
 // Verify checksum
 ipcMain.handle("install:verifyChecksum", async (_, opts) => {
   return download.verifyChecksum({

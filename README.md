@@ -15,15 +15,25 @@ Choose your setup method:
 
 ### Option 1 — Download & Install Wizard (Recommended)
 
-**For Windows users.** One-click installer with automatic configuration.
+**For Windows users.** Single download with everything bundled.
 
 [**Download gres-b2b-setup.exe →**](https://github.com/ajranjith/b2b-governance-action/releases/latest/download/gres-b2b-setup.exe)
 
+**One file, complete setup.** The wizard bundles the `gres-b2b` CLI inside — no separate downloads needed.
+
 The wizard will:
-- Install `gres-b2b` CLI to your user folder
+- Auto-detect your AI agents (Claude Desktop, Cursor, VS Code/Windsurf, Codex CLI)
+- Install the bundled `gres-b2b` CLI to `%LOCALAPPDATA%\Programs\gres-b2b\`
 - Add it to your PATH automatically
-- Configure your AI agent (Claude, Cursor, VS Code, etc.)
-- Verify MCP connection
+- Configure MCP connection for selected agents
+- Verify MCP handshake
+
+**Supported AI Agents:**
+- Claude Desktop
+- Cursor
+- VS Code (Windsurf)
+- Codex CLI
+- Any MCP-compatible agent (manual config)
 
 ### Option 2 — CLI Setup Guide
 
@@ -326,6 +336,28 @@ For CI/CD integration, use the GitHub Action as shown in [Quickstart](#quickstar
 
 ---
 
+## CLI Commands
+
+After installation, the `gres-b2b` CLI provides these commands:
+
+```bash
+# Show version
+gres-b2b --version
+
+# Start MCP server (used by AI agents)
+gres-b2b mcp serve
+
+# Run MCP self-test
+gres-b2b mcp selftest
+
+# Check prerequisites
+gres-b2b doctor
+```
+
+The CLI implements the Model Context Protocol (MCP) over stdio, enabling AI agents to interact with governance tools through a standardized JSON-RPC 2.0 interface.
+
+---
+
 ## What Success Looks Like
 
 - Your repo contains `.b2b/report.html` and `.b2b/report.json`
@@ -344,9 +376,11 @@ The action wrapper is MIT licensed. The `gres-b2b` engine license is defined in 
 
 ## Security
 
+- CLI binary bundled inside the wizard — single trusted download
 - SHA256 checksum verification before binary execution
+- Windows Defender-aware installation (auto-unblocks Mark of the Web)
 - SBOMs (SPDX) published with each release
-- No network calls except GitHub release download
+- No network calls during installation (fully offline after download)
 
 ---
 

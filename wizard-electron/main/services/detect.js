@@ -153,6 +153,7 @@ function parseJSONSafe(content) {
 
 /**
  * Detect agents by their signature config files
+ * UNIVERSAL: Never returns error - always returns at least Manual fallback
  */
 async function detectAgents() {
   const detected = [];
@@ -161,6 +162,7 @@ async function detectAgents() {
     for (const configPath of signature.configPaths) {
       if (fs.existsSync(configPath)) {
         const agent = {
+          id: agentName.toLowerCase().replace(/\s+/g, "-"),
           name: agentName,
           configPath,
           configType: signature.configType,
@@ -170,6 +172,7 @@ async function detectAgents() {
           restartMessage: signature.restartMessage,
           icon: signature.icon,
           configExists: true,
+          status: "DETECTED",
         };
 
         // Try to parse the config
@@ -180,7 +183,7 @@ async function detectAgents() {
             const parsed = parseTOML(content);
             agent.configValid = true;
             agent.configData = parsed;
-            agent.hasGres = !!(parsed.mcp?.servers?.gres_b2b);
+            agent.hasGres = !!(parsed.mcp_servers?.gres_b2b || parsed.mcp?.servers?.gres_b2b);
           } else {
             const result = parseJSONSafe(content);
             if (result.success) {
@@ -207,11 +210,54 @@ async function detectAgents() {
     }
   }
 
+  // UNIVERSAL: If no agents detected, return Manual fallback
+  // NEVER return "Detection failed"
+  if (detected.length === 0) {
+    return {
+      success: true,
+      agents: [createManualFallback()],
+      hasAgents: true,
+      multipleAgents: false,
+      isManualFallback: true,
+    };
+  }
+
   return {
     success: true,
     agents: detected,
-    hasAgents: detected.length > 0,
+    hasAgents: true,
     multipleAgents: detected.length > 1,
+    isManualFallback: false,
+  };
+}
+
+/**
+ * Create manual fallback agent for when no signature files are found
+ */
+function createManualFallback() {
+  // Default to Claude Desktop config path
+  const defaultConfigPath = path.join(
+    os.homedir(),
+    "AppData",
+    "Roaming",
+    "Claude",
+    "claude_desktop_config.json"
+  );
+
+  return {
+    id: "manual",
+    name: "Generic AI Agent",
+    configPath: defaultConfigPath,
+    configType: "json",
+    mcpKey: "mcpServers",
+    gresKey: "gres-b2b",
+    processNames: [],
+    restartMessage: "Please restart your AI agent to apply changes.",
+    icon: "puzzle",
+    configExists: false,
+    configValid: true,
+    hasGres: false,
+    status: "MANUAL",
   };
 }
 
@@ -250,6 +296,7 @@ module.exports = {
   detectAgents,
   getAgentProcessNames,
   getRestartMessage,
+  createManualFallback,
   AGENT_SIGNATURES,
   parseJSONSafe,
   parseTOML,
