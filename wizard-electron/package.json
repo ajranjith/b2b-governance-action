@@ -1,0 +1,49 @@
+{
+  "name": "gres-b2b-setup",
+  "version": "1.0.0",
+  "description": "GRES B2B Governance Setup Wizard",
+  "main": "main/main.js",
+  "author": "GRES B2B",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder",
+    "build:win": "electron-builder --win"
+  },
+  "dependencies": {
+    "node-fetch": "^2.7.0"
+  },
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.1"
+  },
+  "build": {
+    "appId": "com.gres.b2b.setup",
+    "productName": "GRES B2B Setup",
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": ["x64"]
+        }
+      ],
+      "signAndEditExecutable": false
+    },
+    "portable": {
+      "artifactName": "gres-b2b-setup.exe"
+    },
+    "files": [
+      "main/**/*",
+      "renderer/**/*",
+      "package.json"
+    ],
+    "publish": {
+      "provider": "github",
+      "owner": "ajranjith",
+      "repo": "b2b-governance-action"
+    }
+  }
+}
