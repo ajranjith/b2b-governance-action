@@ -12,6 +12,7 @@
     "build:win": "npm run prebuild && electron-builder --win"
   },
   "dependencies": {
+    "electron-store": "^11.0.2",
     "node-fetch": "^2.7.0"
   },
   "devDependencies": {
@@ -28,7 +29,9 @@
       "target": [
         {
           "target": "portable",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "signAndEditExecutable": false

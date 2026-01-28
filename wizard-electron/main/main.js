@@ -12,6 +12,7 @@ const scan = require("./services/scan");
 const detect = require("./services/detect");
 const config = require("./services/config");
 const zombie = require("./services/zombie");
+const update = require("./services/update");
 
 let mainWindow;
 
@@ -354,5 +355,86 @@ ipcMain.handle("system:checkExecutable", async (_, filePath) => {
     return { executable: true };
   } catch (e) {
     return { executable: false, error: e.message };
+  }
+});
+
+// ============================================================================
+// Auto-Update (Silent Sync)
+// ============================================================================
+
+// Check for updates (respects rate limiting)
+ipcMain.handle("update:check", async () => {
+  try {
+    return await update.checkForUpdate();
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+// Force check for updates (bypasses rate limiting - manual override)
+ipcMain.handle("update:forceCheck", async () => {
+  try {
+    return await update.forceCheckForUpdate();
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+// Get rate limit status
+ipcMain.handle("update:rateLimitStatus", async () => {
+  try {
+    return update.getRateLimitStatus();
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+// Clear rate limit (for troubleshooting)
+ipcMain.handle("update:clearRateLimit", async () => {
+  try {
+    update.clearRateLimit();
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+// Get current installed version
+ipcMain.handle("update:currentVersion", async () => {
+  try {
+    return await update.getCurrentVersion();
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+// Perform update with atomic swap
+ipcMain.handle("update:perform", async () => {
+  try {
+    return await update.performUpdate({
+      onProgress: (percent) => {
+        mainWindow.webContents.send("update:progress", percent);
+      },
+      onStatus: (status) => {
+        mainWindow.webContents.send("update:status", status);
+      },
+    });
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+// Get system architecture
+ipcMain.handle("update:arch", async () => {
+  return { arch: update.getWindowsArch() };
+});
+
+// Cleanup temp files from previous updates
+ipcMain.handle("update:cleanup", async () => {
+  try {
+    update.cleanupTempFiles();
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err.message };
   }
 });

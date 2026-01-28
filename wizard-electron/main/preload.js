@@ -110,4 +110,49 @@ contextBridge.exposeInMainWorld("gres", {
     checkDevMode: () => ipcRenderer.invoke("system:checkDevMode"),
     checkExecutable: (path) => ipcRenderer.invoke("system:checkExecutable", path),
   },
+
+  // ========================================================================
+  // Auto-Update (Silent Sync)
+  // ========================================================================
+  update: {
+    // Check for updates (respects rate limiting)
+    check: () => ipcRenderer.invoke("update:check"),
+
+    // Force check (manual override, bypasses rate limiting)
+    forceCheck: () => ipcRenderer.invoke("update:forceCheck"),
+
+    // Get current installed version
+    currentVersion: () => ipcRenderer.invoke("update:currentVersion"),
+
+    // Perform the update
+    perform: () => ipcRenderer.invoke("update:perform"),
+
+    // Get system architecture
+    arch: () => ipcRenderer.invoke("update:arch"),
+
+    // Cleanup temp files
+    cleanup: () => ipcRenderer.invoke("update:cleanup"),
+
+    // Get rate limit status
+    rateLimitStatus: () => ipcRenderer.invoke("update:rateLimitStatus"),
+
+    // Clear rate limit (for troubleshooting)
+    clearRateLimit: () => ipcRenderer.invoke("update:clearRateLimit"),
+
+    // Progress listener
+    onProgress: (callback) => {
+      ipcRenderer.on("update:progress", (_, percent) => callback(percent));
+    },
+    offProgress: () => {
+      ipcRenderer.removeAllListeners("update:progress");
+    },
+
+    // Status listener
+    onStatus: (callback) => {
+      ipcRenderer.on("update:status", (_, status) => callback(status));
+    },
+    offStatus: () => {
+      ipcRenderer.removeAllListeners("update:status");
+    },
+  },
 });
