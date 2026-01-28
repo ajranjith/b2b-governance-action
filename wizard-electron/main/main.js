@@ -58,7 +58,11 @@ app.on("window-all-closed", () => {
 
 // Agent Detection (Registry + Disk fallback)
 ipcMain.handle("detect:agents", async () => {
-  return detect.detectAgents();
+  try {
+    return await detect.detectAgents();
+  } catch (err) {
+    return { success: false, error: err.message, agents: [] };
+  }
 });
 
 // Config Validation

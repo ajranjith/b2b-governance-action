@@ -210,6 +210,7 @@ async function detectAgents() {
   }
 
   return {
+    success: true,
     agents: allAgents,
     hasAgents: allAgents.length > 0,
   };
