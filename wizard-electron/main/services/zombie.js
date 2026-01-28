@@ -1,152 +1,195 @@
 /**
  * Zombie Process Guard Service
  *
- * Monitors AI agent processes to ensure they've fully exited
- * before proceeding with config changes. This prevents file
- * locking issues and ensures clean restarts.
+ * Monitors running AI agent processes and warns when restart is needed.
+ * Special handling for Codex CLI: terminal/CLI restart message.
  */
 
-const { exec, execSync } = require("child_process");
-
-// Process name mappings for each agent
-const PROCESS_NAMES = {
-  "Claude Desktop": ["Claude.exe", "claude.exe"],
-  "Cursor": ["Cursor.exe", "cursor.exe"],
-  "VS Code (Windsurf)": ["Windsurf.exe", "windsurf.exe", "Code.exe", "code.exe"],
-  "Codex CLI": ["codex.exe"],
-};
+const { execSync, spawn } = require("child_process");
+const { getAgentProcessNames, getRestartMessage } = require("./detect");
 
 /**
- * Check if a process is running
+ * Check if any processes matching the names are running
  */
-function isProcessRunning(processName) {
-  return new Promise((resolve) => {
-    exec(`tasklist /FI "IMAGENAME eq ${processName}" /NH`, { windowsHide: true }, (err, stdout) => {
-      if (err) {
-        resolve(false);
-        return;
-      }
-      // If process is running, tasklist will show its name
-      resolve(stdout.toLowerCase().includes(processName.toLowerCase()));
+function checkProcessesRunning(processNames) {
+  if (!processNames || processNames.length === 0) {
+    return { running: false, processes: [] };
+  }
+
+  try {
+    const output = execSync("tasklist /FO CSV /NH", {
+      encoding: "utf8",
+      windowsHide: true,
     });
-  });
-}
 
-/**
- * Check if any processes for an agent are running
- */
-async function checkAgentRunning(agentName) {
-  const processNames = PROCESS_NAMES[agentName] || [agentName.replace(/\s/g, "") + ".exe"];
+    const runningProcesses = [];
 
-  for (const procName of processNames) {
-    if (await isProcessRunning(procName)) {
-      return {
-        running: true,
-        processName: procName,
-      };
+    for (const line of output.split("\n")) {
+      const match = line.match(/"([^"]+)"/);
+      if (match) {
+        const processName = match[1];
+        for (const targetName of processNames) {
+          if (processName.toLowerCase() === targetName.toLowerCase()) {
+            if (!runningProcesses.includes(processName)) {
+              runningProcesses.push(processName);
+            }
+          }
+        }
+      }
     }
-  }
 
-  return { running: false };
-}
-
-/**
- * Poll for agent process to exit
- * Returns a promise that resolves when the agent is no longer running
- */
-function waitForAgentExit(agentName, options = {}) {
-  const { timeout = 60000, interval = 1500, onCheck } = options;
-
-  return new Promise((resolve, reject) => {
-    const startTime = Date.now();
-    let checkCount = 0;
-
-    const poll = async () => {
-      checkCount++;
-      const status = await checkAgentRunning(agentName);
-
-      if (onCheck) {
-        onCheck({ checkCount, status, elapsed: Date.now() - startTime });
-      }
-
-      if (!status.running) {
-        resolve({
-          success: true,
-          checkCount,
-          elapsed: Date.now() - startTime,
-        });
-        return;
-      }
-
-      if (Date.now() - startTime >= timeout) {
-        resolve({
-          success: false,
-          timeout: true,
-          processName: status.processName,
-          checkCount,
-        });
-        return;
-      }
-
-      setTimeout(poll, interval);
+    return {
+      running: runningProcesses.length > 0,
+      processes: runningProcesses,
     };
-
-    poll();
-  });
+  } catch (e) {
+    return { running: false, processes: [], error: e.message };
+  }
 }
 
 /**
- * Force kill an agent process (requires user consent)
+ * Check if a specific agent is running
  */
-async function forceKillAgent(agentName) {
-  const processNames = PROCESS_NAMES[agentName] || [agentName.replace(/\s/g, "") + ".exe"];
-
-  const killed = [];
-  const failed = [];
-
-  for (const procName of processNames) {
-    try {
-      execSync(`taskkill /F /IM ${procName}`, { windowsHide: true, stdio: "pipe" });
-      killed.push(procName);
-    } catch (e) {
-      // Process might not exist or access denied
-      if (e.message && !e.message.includes("not found")) {
-        failed.push({ process: procName, error: e.message });
-      }
-    }
-  }
-
-  // Wait a moment for processes to fully terminate
-  await new Promise((r) => setTimeout(r, 1000));
-
-  // Verify kill
-  const stillRunning = await checkAgentRunning(agentName);
+function checkAgentRunning(agentName) {
+  const processNames = getAgentProcessNames(agentName);
+  const result = checkProcessesRunning(processNames);
 
   return {
-    success: !stillRunning.running,
-    killed,
-    failed,
-    stillRunning: stillRunning.running ? stillRunning.processName : null,
+    ...result,
+    agentName,
+    restartMessage: getRestartMessage(agentName),
+    isCodex: agentName === "Codex CLI",
   };
 }
 
 /**
- * Get running status of all known agents
+ * Wait for agent to exit with polling
  */
-async function getAllAgentStatus() {
-  const statuses = {};
+async function waitForAgentExit(agentName, options = {}) {
+  const {
+    timeout = 120000,
+    pollInterval = 3000,
+    onCheck = () => {},
+  } = options;
 
-  for (const agentName of Object.keys(PROCESS_NAMES)) {
-    statuses[agentName] = await checkAgentRunning(agentName);
+  const processNames = getAgentProcessNames(agentName);
+  const restartMessage = getRestartMessage(agentName);
+  const isCodex = agentName === "Codex CLI";
+
+  const startTime = Date.now();
+  let checkCount = 0;
+
+  return new Promise((resolve) => {
+    const check = () => {
+      checkCount++;
+      const elapsed = Date.now() - startTime;
+
+      if (elapsed >= timeout) {
+        resolve({
+          exited: false,
+          timeout: true,
+          agentName,
+          restartMessage,
+          isCodex,
+        });
+        return;
+      }
+
+      const result = checkProcessesRunning(processNames);
+
+      onCheck({
+        running: result.running,
+        processes: result.processes,
+        checkCount,
+        elapsed,
+        message: result.running
+          ? `Still running: ${result.processes.join(", ")}`
+          : "Process exited",
+      });
+
+      if (!result.running) {
+        resolve({
+          exited: true,
+          agentName,
+          restartMessage,
+          isCodex,
+        });
+        return;
+      }
+
+      // Schedule next check
+      setTimeout(check, pollInterval);
+    };
+
+    // Start checking
+    check();
+  });
+}
+
+/**
+ * Force kill agent processes (requires user consent)
+ */
+function forceKillAgent(agentName) {
+  const processNames = getAgentProcessNames(agentName);
+
+  if (!processNames || processNames.length === 0) {
+    return { success: false, error: "No known process names for this agent" };
   }
 
-  return statuses;
+  const killed = [];
+  const errors = [];
+
+  for (const processName of processNames) {
+    try {
+      execSync(`taskkill /F /IM "${processName}"`, {
+        windowsHide: true,
+        encoding: "utf8",
+      });
+      killed.push(processName);
+    } catch (e) {
+      // Process might not be running, which is fine
+      if (!e.message.includes("not found")) {
+        errors.push({ process: processName, error: e.message });
+      }
+    }
+  }
+
+  return {
+    success: killed.length > 0 || errors.length === 0,
+    killed,
+    errors,
+    restartMessage: getRestartMessage(agentName),
+    isCodex: agentName === "Codex CLI",
+  };
+}
+
+/**
+ * Check all agents for running processes
+ */
+function checkAllAgentsRunning(agents) {
+  const results = [];
+
+  for (const agent of agents) {
+    const result = checkAgentRunning(agent.name);
+    if (result.running) {
+      results.push({
+        ...result,
+        agent,
+      });
+    }
+  }
+
+  return {
+    hasRunning: results.length > 0,
+    runningAgents: results,
+    count: results.length,
+  };
 }
 
 module.exports = {
   checkAgentRunning,
+  checkProcessesRunning,
   waitForAgentExit,
   forceKillAgent,
-  getAllAgentStatus,
-  PROCESS_NAMES,
+  checkAllAgentsRunning,
 };

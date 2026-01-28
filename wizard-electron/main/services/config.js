@@ -1,308 +1,364 @@
 /**
- * Config Service - Non-Destructive MCP Config Management
+ * Config Management Service - Safe Non-Destructive Merges
  *
- * Critical Requirements:
- * - NEVER delete or overwrite existing MCP connections
- * - Only upsert the "GRES B2B Governance" entry
- * - Preserve all other keys, servers, and settings
- * - Create timestamped backup before any write
- * - Use absolute path for binary to avoid PATH issues
+ * Rules:
+ * 1. Always backup before editing
+ * 2. Parse config - if fails, offer Repair/Overwrite or Open file
+ * 3. Upsert only "GRES B2B Governance" / "gres_b2b" entry
+ * 4. Never delete existing MCP connections
  */
 
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
+const { parseJSONSafe, parseTOML } = require("./detect");
 
-const INSTALL_DIR = path.join(os.homedir(), "AppData", "Local", "Programs", "gres-b2b");
-const BINARY_PATH = path.join(INSTALL_DIR, "gres-b2b.exe");
-const GRES_SERVER_NAME = "gres-b2b";
-
-/**
- * Attempt to repair broken JSON using common fixes
- */
-function repairJson(content) {
-  let fixed = content;
-
-  // Remove trailing commas before } or ]
-  fixed = fixed.replace(/,(\s*[}\]])/g, "$1");
-
-  // Remove BOM
-  fixed = fixed.replace(/^\uFEFF/, "");
-
-  // Try to fix unquoted keys (simple cases)
-  fixed = fixed.replace(/([{,]\s*)(\w+)(\s*:)/g, '$1"$2"$3');
-
-  // Remove comments (// and /* */)
-  fixed = fixed.replace(/\/\/.*$/gm, "");
-  fixed = fixed.replace(/\/\*[\s\S]*?\*\//g, "");
-
-  return fixed;
-}
-
-/**
- * Parse JSON with repair attempt
- */
-function parseJsonSafe(content) {
-  try {
-    return { success: true, data: JSON.parse(content) };
-  } catch (firstError) {
-    // Try to repair
-    try {
-      const repaired = repairJson(content);
-      return { success: true, data: JSON.parse(repaired), repaired: true };
-    } catch (secondError) {
-      return {
-        success: false,
-        error: firstError.message,
-        position: firstError.message.match(/position (\d+)/)?.[1],
-      };
-    }
-  }
-}
+// Install location: %LOCALAPPDATA%\Programs\gres-b2b\
+const INSTALL_DIR = path.join(
+  process.env.LOCALAPPDATA || path.join(os.homedir(), "AppData", "Local"),
+  "Programs",
+  "gres-b2b"
+);
+const BINARY_NAME = "gres-b2b.exe";
+const BINARY_PATH = path.join(INSTALL_DIR, BINARY_NAME);
 
 /**
  * Create timestamped backup of config file
  */
 function createBackup(configPath) {
   if (!fs.existsSync(configPath)) {
-    return null;
+    return { success: true, skipped: true };
   }
 
-  const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
-  const backupPath = `${configPath}.bak-${timestamp}`;
+  const dir = path.dirname(configPath);
+  const ext = path.extname(configPath);
+  const base = path.basename(configPath, ext);
+  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const backupName = `${base}.backup-${timestamp}${ext}`;
+  const backupPath = path.join(dir, backupName);
 
-  fs.copyFileSync(configPath, backupPath);
-  return backupPath;
+  try {
+    fs.copyFileSync(configPath, backupPath);
+    return { success: true, path: backupPath };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
 }
 
 /**
- * Build the GRES MCP server entry
+ * Read and parse config file
  */
-function buildGresServerEntry() {
+function readConfig(configPath, configType = "json") {
+  if (!fs.existsSync(configPath)) {
+    return { success: true, exists: false, data: null };
+  }
+
+  try {
+    const content = fs.readFileSync(configPath, "utf8");
+
+    if (configType === "toml") {
+      const data = parseTOML(content);
+      return { success: true, exists: true, data, raw: content };
+    } else {
+      const result = parseJSONSafe(content);
+      if (result.success) {
+        return {
+          success: true,
+          exists: true,
+          data: result.data,
+          wasRepaired: result.wasRepaired,
+          raw: content,
+        };
+      } else {
+        return {
+          success: false,
+          exists: true,
+          parseError: true,
+          error: result.error,
+          raw: content,
+        };
+      }
+    }
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+}
+
+/**
+ * Check if GRES is already configured in the config
+ */
+function checkGresConfigured(configPath, mcpKey, gresKey, configType = "json") {
+  const result = readConfig(configPath, configType);
+
+  if (!result.success || !result.exists) {
+    return { configured: false, error: result.error };
+  }
+
+  const mcpServers = getNestedValue(result.data, mcpKey);
+  const configured = !!(mcpServers && mcpServers[gresKey]);
+
   return {
-    command: BINARY_PATH.replace(/\\/g, "\\\\"), // Escape backslashes for JSON
+    configured,
+    data: result.data,
+    currentEntry: configured ? mcpServers[gresKey] : null,
+  };
+}
+
+/**
+ * Get nested value from object using dot notation
+ */
+function getNestedValue(obj, keyPath) {
+  const keys = keyPath.split(".");
+  let current = obj;
+
+  for (const key of keys) {
+    if (current === undefined || current === null) return undefined;
+    current = current[key];
+  }
+
+  return current;
+}
+
+/**
+ * Set nested value in object using dot notation
+ */
+function setNestedValue(obj, keyPath, value) {
+  const keys = keyPath.split(".");
+  let current = obj;
+
+  for (let i = 0; i < keys.length - 1; i++) {
+    const key = keys[i];
+    if (!current[key] || typeof current[key] !== "object") {
+      current[key] = {};
+    }
+    current = current[key];
+  }
+
+  current[keys[keys.length - 1]] = value;
+}
+
+/**
+ * Build the GRES server entry for MCP config
+ */
+function buildGresEntry() {
+  // Use absolute path to avoid PATH inheritance issues
+  return {
+    command: BINARY_PATH.replace(/\\/g, "\\\\"),
     args: ["mcp", "serve"],
   };
 }
 
 /**
- * Non-destructive merge for JSON configs
- * Only upserts the GRES entry, preserves everything else
+ * Build TOML section for GRES
  */
-function mergeJsonConfig(existingData, mcpKey) {
-  const data = JSON.parse(JSON.stringify(existingData)); // Deep clone
-
-  // Handle nested key like "mcp.servers"
-  const keys = mcpKey.split(".");
-  let current = data;
-
-  // Navigate to parent of final key, creating objects as needed
-  for (let i = 0; i < keys.length - 1; i++) {
-    if (!current[keys[i]]) {
-      current[keys[i]] = {};
-    }
-    current = current[keys[i]];
-  }
-
-  const finalKey = keys[keys.length - 1];
-
-  // Create the servers object if it doesn't exist
-  if (!current[finalKey]) {
-    current[finalKey] = {};
-  }
-
-  // Upsert only the GRES entry - preserve all others
-  current[finalKey][GRES_SERVER_NAME] = buildGresServerEntry();
-
-  return data;
+function buildGresToml() {
+  return `
+[mcp.servers.gres_b2b]
+command = "${BINARY_PATH.replace(/\\/g, "\\\\")}"
+args = ["mcp", "serve"]
+`;
 }
 
 /**
- * Read and validate agent config
+ * Write config with safe merge (JSON)
  */
-async function readConfig(configPath) {
-  if (!fs.existsSync(configPath)) {
+async function writeJsonConfig(agent) {
+  const { configPath, mcpKey, gresKey } = agent;
+
+  // Step 1: Create backup
+  const backupResult = createBackup(configPath);
+  if (!backupResult.success && !backupResult.skipped) {
+    return { success: false, error: `Backup failed: ${backupResult.error}` };
+  }
+
+  // Step 2: Read existing config
+  const readResult = readConfig(configPath, "json");
+
+  if (readResult.parseError) {
+    // Config exists but is corrupted - return error with repair option
     return {
-      success: true,
-      exists: false,
-      data: null,
+      success: false,
+      parseError: true,
+      error: readResult.error,
+      raw: readResult.raw,
+      backup: backupResult.path,
+      needsRepair: true,
     };
   }
 
-  const content = fs.readFileSync(configPath, "utf8");
-  const parseResult = parseJsonSafe(content);
+  // Step 3: Merge config
+  let data = readResult.exists ? { ...readResult.data } : {};
+
+  // Navigate to MCP servers section, creating path if needed
+  const keys = mcpKey.split(".");
+  let current = data;
+
+  for (let i = 0; i < keys.length; i++) {
+    const key = keys[i];
+    if (i === keys.length - 1) {
+      // Last key - this is the servers object
+      if (!current[key] || typeof current[key] !== "object") {
+        current[key] = {};
+      }
+      // UPSERT only the GRES entry - preserve ALL other entries
+      current[key][gresKey] = buildGresEntry();
+    } else {
+      if (!current[key] || typeof current[key] !== "object") {
+        current[key] = {};
+      }
+      current = current[key];
+    }
+  }
+
+  // Step 4: Ensure parent directory exists
+  const dir = path.dirname(configPath);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+
+  // Step 5: Write config
+  try {
+    fs.writeFileSync(configPath, JSON.stringify(data, null, 2), "utf8");
+    return {
+      success: true,
+      path: configPath,
+      backup: backupResult.path,
+      created: !readResult.exists,
+    };
+  } catch (e) {
+    return { success: false, error: e.message, backup: backupResult.path };
+  }
+}
+
+/**
+ * Write config with safe merge (TOML)
+ */
+async function writeTomlConfig(agent) {
+  const { configPath } = agent;
+
+  // Step 1: Create backup
+  const backupResult = createBackup(configPath);
+  if (!backupResult.success && !backupResult.skipped) {
+    return { success: false, error: `Backup failed: ${backupResult.error}` };
+  }
+
+  // Step 2: Read existing config
+  let content = "";
+  let exists = false;
+
+  if (fs.existsSync(configPath)) {
+    exists = true;
+    content = fs.readFileSync(configPath, "utf8");
+  }
+
+  // Step 3: Check if GRES section already exists
+  const gresSection = "[mcp.servers.gres_b2b]";
+  const hasGres = content.includes(gresSection);
+
+  if (hasGres) {
+    // Update existing section - find and replace
+    const sectionRegex = /\[mcp\.servers\.gres_b2b\][^\[]*(?=\[|$)/s;
+    content = content.replace(sectionRegex, buildGresToml().trim() + "\n\n");
+  } else {
+    // Append new section
+    content = content.trimEnd() + "\n" + buildGresToml();
+  }
+
+  // Step 4: Ensure parent directory exists
+  const dir = path.dirname(configPath);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+
+  // Step 5: Write config
+  try {
+    fs.writeFileSync(configPath, content, "utf8");
+    return {
+      success: true,
+      path: configPath,
+      backup: backupResult.path,
+      created: !exists,
+    };
+  } catch (e) {
+    return { success: false, error: e.message, backup: backupResult.path };
+  }
+}
+
+/**
+ * Main write config function - routes to JSON or TOML handler
+ */
+async function writeConfig(agent) {
+  if (agent.configType === "toml") {
+    return writeTomlConfig(agent);
+  } else {
+    return writeJsonConfig(agent);
+  }
+}
+
+/**
+ * Repair corrupted config by creating fresh with GRES only
+ */
+async function repairConfig(agent) {
+  const { configPath, mcpKey, gresKey, configType } = agent;
+
+  // Create backup first
+  const backupResult = createBackup(configPath);
+
+  // Ensure parent directory exists
+  const dir = path.dirname(configPath);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+
+  if (configType === "toml") {
+    const content = buildGresToml();
+    fs.writeFileSync(configPath, content, "utf8");
+  } else {
+    const data = {};
+    setNestedValue(data, mcpKey, { [gresKey]: buildGresEntry() });
+    fs.writeFileSync(configPath, JSON.stringify(data, null, 2), "utf8");
+  }
 
   return {
-    success: parseResult.success,
-    exists: true,
-    data: parseResult.data,
-    repaired: parseResult.repaired,
-    error: parseResult.error,
-    rawContent: content,
+    success: true,
+    path: configPath,
+    backup: backupResult.path,
+    repaired: true,
   };
 }
 
 /**
- * Write config with non-destructive merge
- * This is the main entry point for config updates
+ * Open config file in default editor
  */
-async function writeConfig(opts) {
-  const { configPath, mcpKey, forceOverwrite = false } = opts;
-
-  try {
-    // Ensure config directory exists
-    const configDir = path.dirname(configPath);
-    fs.mkdirSync(configDir, { recursive: true });
-
-    // Read existing config
-    const existing = await readConfig(configPath);
-
-    let finalData;
-
-    if (!existing.exists) {
-      // No existing config - create new with just GRES entry
-      finalData = {};
-      const keys = mcpKey.split(".");
-      let current = finalData;
-      for (let i = 0; i < keys.length - 1; i++) {
-        current[keys[i]] = {};
-        current = current[keys[i]];
-      }
-      current[keys[keys.length - 1]] = {
-        [GRES_SERVER_NAME]: buildGresServerEntry(),
-      };
-    } else if (!existing.success && !forceOverwrite) {
-      // Config exists but is invalid - don't write without explicit permission
-      return {
-        success: false,
-        error: "Config file is corrupted",
-        parseError: existing.error,
-        needsRepair: true,
-      };
-    } else if (!existing.success && forceOverwrite) {
-      // Force overwrite with clean config
-      finalData = {};
-      const keys = mcpKey.split(".");
-      let current = finalData;
-      for (let i = 0; i < keys.length - 1; i++) {
-        current[keys[i]] = {};
-        current = current[keys[i]];
-      }
-      current[keys[keys.length - 1]] = {
-        [GRES_SERVER_NAME]: buildGresServerEntry(),
-      };
-    } else {
-      // Valid existing config - perform non-destructive merge
-      finalData = mergeJsonConfig(existing.data, mcpKey);
-    }
-
-    // Create backup before writing
-    const backupPath = createBackup(configPath);
-
-    // Write the merged config
-    const jsonContent = JSON.stringify(finalData, null, 2);
-    fs.writeFileSync(configPath, jsonContent, "utf8");
-
-    // Count existing MCP servers (excluding GRES)
-    let existingServerCount = 0;
-    try {
-      const keys = mcpKey.split(".");
-      let servers = finalData;
-      for (const key of keys) {
-        servers = servers[key];
-      }
-      existingServerCount = Object.keys(servers).filter((k) => k !== GRES_SERVER_NAME).length;
-    } catch (e) {
-      existingServerCount = 0;
-    }
-
-    return {
-      success: true,
-      configPath,
-      backupPath,
-      preservedServers: existingServerCount,
-      message: existingServerCount > 0
-        ? `Config updated. ${existingServerCount} existing MCP server(s) preserved.`
-        : "Config created with GRES B2B entry.",
-    };
-  } catch (err) {
-    return {
-      success: false,
-      error: `Failed to write config: ${err.message}`,
-    };
-  }
+function openConfig(configPath) {
+  const { shell } = require("electron");
+  shell.openPath(configPath);
+  return { success: true };
 }
 
 /**
- * Repair a corrupted config file
+ * Get install directory path
  */
-async function repairConfig(configPath, mcpKey) {
-  const backup = createBackup(configPath);
-
-  // Read raw content
-  const content = fs.readFileSync(configPath, "utf8");
-
-  // Try to repair
-  const repaired = repairJson(content);
-
-  try {
-    const data = JSON.parse(repaired);
-
-    // Merge GRES entry
-    const finalData = mergeJsonConfig(data, mcpKey);
-
-    fs.writeFileSync(configPath, JSON.stringify(finalData, null, 2), "utf8");
-
-    return {
-      success: true,
-      backupPath: backup,
-      message: "Config repaired successfully",
-    };
-  } catch (e) {
-    return {
-      success: false,
-      error: "Config is too corrupted to auto-repair",
-      suggestion: "Please manually fix the JSON syntax or delete the file to start fresh",
-    };
-  }
+function getInstallDir() {
+  return INSTALL_DIR;
 }
 
 /**
- * Check if GRES is already configured in agent
+ * Get binary path
  */
-async function checkGresConfigured(configPath, mcpKey) {
-  const existing = await readConfig(configPath);
-
-  if (!existing.success || !existing.exists) {
-    return { configured: false };
-  }
-
-  try {
-    const keys = mcpKey.split(".");
-    let servers = existing.data;
-    for (const key of keys) {
-      servers = servers[key];
-    }
-
-    if (servers && servers[GRES_SERVER_NAME]) {
-      return {
-        configured: true,
-        entry: servers[GRES_SERVER_NAME],
-      };
-    }
-  } catch (e) {
-    // Key path doesn't exist
-  }
-
-  return { configured: false };
+function getBinaryPath() {
+  return BINARY_PATH;
 }
 
 module.exports = {
   readConfig,
   writeConfig,
   repairConfig,
-  checkGresConfigured,
+  openConfig,
   createBackup,
-  GRES_SERVER_NAME,
+  checkGresConfigured,
+  getInstallDir,
+  getBinaryPath,
+  INSTALL_DIR,
   BINARY_PATH,
 };

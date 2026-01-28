@@ -1,16 +1,13 @@
 /**
  * Scan Service - Handles governance scans with streaming output
+ *
+ * Supports detached mode: gres-b2b scan --live --source <target>
+ * Opens progress UI and continues after wizard closes.
  */
 
 const { spawn } = require("child_process");
-const path = require("path");
-const os = require("os");
 const fs = require("fs");
-
-const INSTALL_DIR = path.join(os.homedir(), "AppData", "Local", "Programs", "gres-b2b");
-const BINARY_NAME = "gres-b2b.exe";
-const CONFIG_DIR = path.join(os.homedir(), "AppData", "Local", "gres-b2b");
-const CONFIG_NAME = "config.toml";
+const { BINARY_PATH, INSTALL_DIR } = require("./config");
 
 /**
  * Start a governance scan with streaming output
@@ -19,25 +16,15 @@ const CONFIG_NAME = "config.toml";
  */
 async function start(sender, opts = {}) {
   return new Promise((resolve) => {
-    const binaryPath = path.join(INSTALL_DIR, BINARY_NAME);
-    const configPath = path.join(CONFIG_DIR, CONFIG_NAME);
-    const projectPath = opts.projectPath || process.cwd();
-
-    if (!fs.existsSync(binaryPath)) {
+    if (!fs.existsSync(BINARY_PATH)) {
       return resolve({
         success: false,
-        error: "Binary not found",
+        error: "Binary not found at " + BINARY_PATH,
       });
     }
 
     // Build args
-    const args = [];
-
-    if (fs.existsSync(configPath)) {
-      args.push("--config", configPath);
-    }
-
-    args.push("scan");
+    const args = ["scan"];
 
     if (opts.live) {
       args.push("--live");
@@ -45,15 +32,23 @@ async function start(sender, opts = {}) {
 
     if (opts.source) {
       args.push("--source", opts.source);
-    } else if (projectPath) {
-      args.push("--source", projectPath);
+    }
+
+    if (opts.port) {
+      args.push("--port", String(opts.port));
     }
 
     // Spawn the process
-    const proc = spawn(binaryPath, args, {
-      cwd: projectPath,
+    const proc = spawn(BINARY_PATH, args, {
+      cwd: opts.source || process.cwd(),
       windowsHide: true,
+      detached: opts.detached || false,
     });
+
+    // If detached, unref so parent can exit
+    if (opts.detached) {
+      proc.unref();
+    }
 
     let stdout = "";
     let stderr = "";
@@ -134,9 +129,68 @@ async function start(sender, opts = {}) {
         error: `Failed to run scan: ${err.message}`,
       });
     });
+
+    // For detached mode, resolve immediately
+    if (opts.detached) {
+      resolve({
+        success: true,
+        detached: true,
+        pid: proc.pid,
+        message: "Scan started in background",
+      });
+    }
   });
+}
+
+/**
+ * Start a detached scan that continues after wizard closes
+ * Opens the progress UI in browser
+ */
+async function startDetached(opts = {}) {
+  if (!fs.existsSync(BINARY_PATH)) {
+    return {
+      success: false,
+      error: "Binary not found at " + BINARY_PATH,
+    };
+  }
+
+  const args = ["scan", "--live"];
+
+  if (opts.source) {
+    args.push("--source", opts.source);
+  }
+
+  if (opts.port) {
+    args.push("--port", String(opts.port));
+  }
+
+  try {
+    const proc = spawn(BINARY_PATH, args, {
+      cwd: opts.source || process.cwd(),
+      windowsHide: true,
+      detached: true,
+      stdio: "ignore",
+    });
+
+    proc.unref();
+
+    return {
+      success: true,
+      detached: true,
+      pid: proc.pid,
+      port: opts.port || 8080,
+      url: `http://localhost:${opts.port || 8080}`,
+      message: "Scan started in background",
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: `Failed to start scan: ${err.message}`,
+    };
+  }
 }
 
 module.exports = {
   start,
+  startDetached,
 };

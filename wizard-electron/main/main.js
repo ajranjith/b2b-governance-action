@@ -1,6 +1,7 @@
 const { app, BrowserWindow, ipcMain, shell } = require("electron");
 const path = require("path");
 const net = require("net");
+const fs = require("fs");
 
 // Import services
 const mcp = require("./services/mcp");
@@ -17,7 +18,7 @@ let mainWindow;
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 520,
-    height: 680,
+    height: 720,
     resizable: false,
     autoHideMenuBar: true,
     backgroundColor: "#0f1115",
@@ -53,10 +54,10 @@ app.on("window-all-closed", () => {
 });
 
 // ============================================================================
-// Phase 1: Environment Probe (Pre-flight)
+// Phase 1: Agent Detection (Protocol-First)
 // ============================================================================
 
-// Agent Detection (Registry + Disk fallback)
+// Detect agents by signature config files
 ipcMain.handle("detect:agents", async () => {
   try {
     return await detect.detectAgents();
@@ -65,44 +66,98 @@ ipcMain.handle("detect:agents", async () => {
   }
 });
 
-// Config Validation
+// ============================================================================
+// Phase 2: Config Management (Non-Destructive)
+// ============================================================================
+
+// Read config file
 ipcMain.handle("config:read", async (_, opts) => {
-  return config.readConfig(opts.configPath);
+  try {
+    return config.readConfig(opts.configPath, opts.configType);
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
 });
 
+// Check if GRES is configured
 ipcMain.handle("config:check", async (_, opts) => {
-  return config.checkGresConfigured(opts.configPath, opts.mcpKey);
+  try {
+    return config.checkGresConfigured(
+      opts.configPath,
+      opts.mcpKey,
+      opts.gresKey,
+      opts.configType
+    );
+  } catch (err) {
+    return { configured: false, error: err.message };
+  }
+});
+
+// Write config with safe merge
+ipcMain.handle("config:write", async (_, agent) => {
+  try {
+    return await config.writeConfig(agent);
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+// Repair corrupted config
+ipcMain.handle("config:repair", async (_, agent) => {
+  try {
+    return await config.repairConfig(agent);
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+// Open config in editor
+ipcMain.handle("config:open", async (_, configPath) => {
+  try {
+    return config.openConfig(configPath);
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
 });
 
 // ============================================================================
-// Phase 2: Active Handshake
+// Phase 3: Binary Installation
 // ============================================================================
 
-// MCP Selftest (the deterministic gatekeeper)
-ipcMain.handle("mcp:selftest", async () => {
-  return mcp.selftest();
-});
-
-ipcMain.handle("mcp:testInitialize", async (_, opts) => {
-  return mcp.testInitialize(opts);
-});
-
-// Binary Download with progress
+// Download binary from GitHub Releases
 ipcMain.handle("install:downloadBinary", async (event, opts) => {
   return download.downloadBinary({
     ...opts,
+    installDir: config.INSTALL_DIR,
     onProgress: (percent) => {
       mainWindow.webContents.send("download:progress", percent);
     },
   });
 });
 
+// Verify checksum
 ipcMain.handle("install:verifyChecksum", async (_, opts) => {
-  return download.verifyChecksum(opts);
+  return download.verifyChecksum({
+    ...opts,
+    binaryPath: config.BINARY_PATH,
+  });
+});
+
+// Apply PATH
+ipcMain.handle("install:applyPath", async () => {
+  return pathService.applyPath(config.INSTALL_DIR);
+});
+
+// Get install paths
+ipcMain.handle("install:getPaths", async () => {
+  return {
+    installDir: config.INSTALL_DIR,
+    binaryPath: config.BINARY_PATH,
+  };
 });
 
 // ============================================================================
-// Phase 3: Zombie Guard
+// Phase 4: Zombie Guard
 // ============================================================================
 
 // Check if agent is running
@@ -110,62 +165,69 @@ ipcMain.handle("zombie:check", async (_, agentName) => {
   return zombie.checkAgentRunning(agentName);
 });
 
+// Check all agents for running processes
+ipcMain.handle("zombie:checkAll", async (_, agents) => {
+  return zombie.checkAllAgentsRunning(agents);
+});
+
 // Poll for agent to exit
 ipcMain.handle("zombie:waitForExit", async (event, opts) => {
-  const { agentName, timeout = 60000 } = opts;
+  const { agentName, timeout = 60000, pollInterval = 3000 } = opts;
   return zombie.waitForAgentExit(agentName, {
     timeout,
+    pollInterval,
     onCheck: (status) => {
       mainWindow.webContents.send("zombie:status", status);
     },
   });
 });
 
-// Force kill agent (requires user consent)
+// Force kill agent
 ipcMain.handle("zombie:forceKill", async (_, agentName) => {
   return zombie.forceKillAgent(agentName);
 });
 
 // ============================================================================
-// Phase 4: Config Write (Non-Destructive)
+// Phase 5: Verification (MCP Handshake)
 // ============================================================================
 
-// Write config with merge (preserves existing MCP connections)
-ipcMain.handle("config:write", async (_, opts) => {
-  return config.writeConfig(opts);
+// MCP selftest with real handshake
+ipcMain.handle("mcp:selftest", async () => {
+  return mcp.selftest();
 });
 
-// Repair corrupted config
-ipcMain.handle("config:repair", async (_, opts) => {
-  return config.repairConfig(opts.configPath, opts.mcpKey);
+// MCP test initialize
+ipcMain.handle("mcp:testInitialize", async (_, opts) => {
+  return mcp.testInitialize(opts);
 });
 
-// ============================================================================
-// Phase 5: PATH & Verification
-// ============================================================================
-
-ipcMain.handle("install:applyPath", async () => {
-  return pathService.applyPath();
+// Binary version check
+ipcMain.handle("verify:binaryVersion", async () => {
+  return verify.binaryVersion(config.BINARY_PATH);
 });
 
+// PATH verification
 ipcMain.handle("verify:pathWhere", async () => {
   return verify.pathWhere();
 });
 
-ipcMain.handle("verify:binaryVersion", async () => {
-  return verify.binaryVersion();
-});
-
+// Full doctor check
 ipcMain.handle("verify:doctor", async () => {
-  return verify.doctor();
+  return verify.doctor(config.BINARY_PATH);
 });
 
 // ============================================================================
-// Phase 6: Scan Handoff
+// Phase 6: Scan
 // ============================================================================
 
+// Start scan with streaming
 ipcMain.handle("scan:start", async (evt, opts) => {
   return scan.start(evt.sender, opts);
+});
+
+// Start detached scan
+ipcMain.handle("scan:startDetached", async (_, opts) => {
+  return scan.startDetached(opts);
 });
 
 // Check if port is available
@@ -215,18 +277,31 @@ ipcMain.handle("util:openPath", async (_, filePath) => {
 });
 
 ipcMain.handle("util:getInstallPath", async () => {
-  return pathService.getInstallPath();
+  return {
+    installDir: config.INSTALL_DIR,
+    binaryPath: config.BINARY_PATH,
+  };
 });
 
 // Create desktop shortcut
 ipcMain.handle("util:createShortcut", async (_, opts) => {
-  const { name, url } = opts;
+  const { name, target, args = [] } = opts;
   try {
     const desktopPath = path.join(require("os").homedir(), "Desktop");
-    const shortcutPath = path.join(desktopPath, `${name}.url`);
+    const shortcutPath = path.join(desktopPath, `${name}.lnk`);
 
-    const content = `[InternetShortcut]\nURL=${url}\nIconIndex=0\n`;
-    require("fs").writeFileSync(shortcutPath, content);
+    // Create a Windows shortcut using PowerShell
+    const psCommand = `
+      $WshShell = New-Object -ComObject WScript.Shell
+      $Shortcut = $WshShell.CreateShortcut('${shortcutPath.replace(/'/g, "''")}')
+      $Shortcut.TargetPath = '${target.replace(/'/g, "''")}'
+      $Shortcut.Arguments = '${args.join(" ").replace(/'/g, "''")}'
+      $Shortcut.WorkingDirectory = '${path.dirname(target).replace(/'/g, "''")}'
+      $Shortcut.Save()
+    `;
+
+    const { execSync } = require("child_process");
+    execSync(`powershell -Command "${psCommand}"`, { windowsHide: true });
 
     return { success: true, path: shortcutPath };
   } catch (err) {
@@ -238,7 +313,7 @@ ipcMain.handle("util:createShortcut", async (_, opts) => {
 // System Checks
 // ============================================================================
 
-// Check Windows Developer Mode (for symlinks)
+// Check Windows Developer Mode
 ipcMain.handle("system:checkDevMode", async () => {
   try {
     const { execSync } = require("child_process");
@@ -252,9 +327,8 @@ ipcMain.handle("system:checkDevMode", async () => {
   }
 });
 
-// Check execution policy
+// Check if file is executable
 ipcMain.handle("system:checkExecutable", async (_, filePath) => {
-  const fs = require("fs");
   try {
     fs.accessSync(filePath, fs.constants.X_OK);
     return { executable: true };

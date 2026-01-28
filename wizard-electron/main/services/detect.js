@@ -1,236 +1,256 @@
 /**
- * Agent Detection Service
+ * Agent Detection Service - Protocol-First Approach
  *
- * Detects installed AI agents via:
- * 1. Registry (HKCU/HKLM Uninstall keys) - match on DisplayName
- * 2. Disk fallback for portable/user-only installs
+ * Detects AI agents by their signature config files:
+ * 1. Codex CLI - TOML config
+ * 2. Claude Desktop - JSON config
+ * 3. Cursor - JSON config
+ * 4. Windsurf - JSON config
+ * 5. Generic MCP - JSON config
  */
 
-const { execSync } = require("child_process");
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
 
-// Agent definitions with detection rules and config paths
-const AGENT_DEFINITIONS = {
-  "Claude Desktop": {
-    registryNames: ["Claude", "Claude Desktop"],
-    diskPaths: [
-      path.join(os.homedir(), "AppData", "Local", "Programs", "Claude"),
-      path.join(os.homedir(), "AppData", "Local", "Claude"),
+// Protocol-first agent definitions - detect by config file signature
+const AGENT_SIGNATURES = {
+  "Codex CLI": {
+    configPaths: [
+      path.join(os.homedir(), ".codex", "config.toml"),
+      path.join(os.homedir(), ".config", "codex", "config.toml"),
     ],
-    configPath: path.join(os.homedir(), "AppData", "Roaming", "Claude", "claude_desktop_config.json"),
+    configType: "toml",
+    mcpKey: "mcp.servers",
+    gresKey: "gres_b2b",
+    processNames: ["codex", "codex.exe"],
+    restartMessage: "Please restart your terminal/CLI session to apply changes.",
+    icon: "terminal",
+  },
+  "Claude Desktop": {
+    configPaths: [
+      path.join(os.homedir(), "AppData", "Roaming", "Claude", "claude_desktop_config.json"),
+      path.join(os.homedir(), ".config", "claude", "claude_desktop_config.json"),
+      path.join(os.homedir(), "Library", "Application Support", "Claude", "claude_desktop_config.json"),
+    ],
     configType: "json",
     mcpKey: "mcpServers",
+    gresKey: "gres-b2b",
+    processNames: ["Claude.exe", "claude.exe", "Claude"],
+    restartMessage: "Please close and reopen Claude Desktop to apply changes.",
+    icon: "chat",
   },
   "Cursor": {
-    registryNames: ["Cursor", "Cursor Editor"],
-    diskPaths: [
-      path.join(os.homedir(), "AppData", "Local", "Programs", "cursor"),
-      path.join(os.homedir(), ".cursor"),
+    configPaths: [
+      path.join(os.homedir(), ".cursor", "mcp.json"),
+      path.join(os.homedir(), "AppData", "Roaming", "Cursor", "User", "mcp.json"),
     ],
-    configPath: path.join(os.homedir(), ".cursor", "mcp.json"),
     configType: "json",
     mcpKey: "mcpServers",
+    gresKey: "gres-b2b",
+    processNames: ["Cursor.exe", "cursor.exe", "Cursor"],
+    restartMessage: "Please close and reopen Cursor to apply changes.",
+    icon: "code",
   },
-  "VS Code (Windsurf)": {
-    registryNames: ["Windsurf", "Visual Studio Code", "VS Code"],
-    diskPaths: [
-      path.join(os.homedir(), ".codeium", "windsurf"),
-      path.join(os.homedir(), "AppData", "Local", "Programs", "Microsoft VS Code"),
+  "Windsurf": {
+    configPaths: [
+      path.join(os.homedir(), ".codeium", "windsurf", "mcp_config.json"),
+      path.join(os.homedir(), "AppData", "Roaming", "Windsurf", "User", "mcp.json"),
+      path.join(os.homedir(), ".config", "windsurf", "mcp.json"),
     ],
-    configPath: path.join(os.homedir(), "AppData", "Roaming", "Windsurf", "User", "settings.json"),
-    altConfigPath: path.join(os.homedir(), "AppData", "Roaming", "Code", "User", "globalStorage", "mcp.json"),
-    configType: "json",
-    mcpKey: "mcp.servers",
-  },
-  "Codex CLI": {
-    registryNames: ["Codex CLI", "OpenAI Codex"],
-    diskPaths: [
-      path.join(os.homedir(), ".codex"),
-      path.join(os.homedir(), "AppData", "Local", "codex"),
-    ],
-    configPath: path.join(os.homedir(), ".codex", "config.json"),
     configType: "json",
     mcpKey: "mcpServers",
+    gresKey: "gres-b2b",
+    processNames: ["Windsurf.exe", "windsurf.exe", "Windsurf"],
+    restartMessage: "Please close and reopen Windsurf to apply changes.",
+    icon: "wind",
+  },
+  "Generic MCP": {
+    configPaths: [
+      path.join(os.homedir(), ".mcp", "config.json"),
+      path.join(os.homedir(), ".config", "mcp", "servers.json"),
+    ],
+    configType: "json",
+    mcpKey: "servers",
+    gresKey: "gres-b2b",
+    processNames: [],
+    restartMessage: "Please restart your MCP client to apply changes.",
+    icon: "puzzle",
   },
 };
 
 /**
- * Query Windows registry for installed applications
+ * Parse TOML config (basic parser for MCP section)
  */
-function queryRegistry(hive, path) {
-  try {
-    const cmd = `reg query "${hive}\\${path}" /s 2>nul`;
-    const output = execSync(cmd, { encoding: "utf8", windowsHide: true });
-    return output;
-  } catch (e) {
-    return "";
-  }
-}
-
-/**
- * Parse registry output to find DisplayNames
- */
-function parseRegistryForApps(registryOutput) {
-  const apps = [];
-  const lines = registryOutput.split("\n");
-  let currentKey = "";
-  let currentApp = {};
+function parseTOML(content) {
+  const result = {};
+  let currentSection = result;
+  const lines = content.split("\n");
 
   for (const line of lines) {
-    if (line.startsWith("HKEY_")) {
-      if (currentApp.displayName) {
-        apps.push({ ...currentApp, registryKey: currentKey });
+    const trimmed = line.trim();
+
+    // Skip comments and empty lines
+    if (!trimmed || trimmed.startsWith("#")) continue;
+
+    // Section header [section] or [section.subsection]
+    const sectionMatch = trimmed.match(/^\[([^\]]+)\]$/);
+    if (sectionMatch) {
+      const path = sectionMatch[1].split(".");
+      currentSection = result;
+      for (const key of path) {
+        if (!currentSection[key]) currentSection[key] = {};
+        currentSection = currentSection[key];
       }
-      currentKey = line.trim();
-      currentApp = {};
-    } else if (line.includes("DisplayName")) {
-      const match = line.match(/DisplayName\s+REG_SZ\s+(.+)/);
-      if (match) {
-        currentApp.displayName = match[1].trim();
+      continue;
+    }
+
+    // Key-value pair
+    const kvMatch = trimmed.match(/^([^=]+)=\s*(.+)$/);
+    if (kvMatch) {
+      const key = kvMatch[1].trim();
+      let value = kvMatch[2].trim();
+
+      // Parse value type
+      if (value.startsWith('"') && value.endsWith('"')) {
+        value = value.slice(1, -1);
+      } else if (value === "true") {
+        value = true;
+      } else if (value === "false") {
+        value = false;
+      } else if (!isNaN(value)) {
+        value = Number(value);
       }
-    } else if (line.includes("InstallLocation")) {
-      const match = line.match(/InstallLocation\s+REG_SZ\s+(.+)/);
-      if (match) {
-        currentApp.installLocation = match[1].trim();
-      }
+
+      currentSection[key] = value;
     }
   }
 
-  if (currentApp.displayName) {
-    apps.push({ ...currentApp, registryKey: currentKey });
-  }
-
-  return apps;
+  return result;
 }
 
 /**
- * Detect agents from registry
+ * Try to parse JSON with recovery for common issues
  */
-function detectFromRegistry() {
-  const detected = [];
-  const registryPaths = [
-    { hive: "HKCU", path: "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall" },
-    { hive: "HKLM", path: "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall" },
-    { hive: "HKLM", path: "Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall" },
-  ];
+function parseJSONSafe(content) {
+  try {
+    return { success: true, data: JSON.parse(content) };
+  } catch (e) {
+    // Try to fix common JSON issues
+    let fixed = content;
 
-  for (const { hive, path: regPath } of registryPaths) {
-    const output = queryRegistry(hive, regPath);
-    const apps = parseRegistryForApps(output);
+    // Remove trailing commas
+    fixed = fixed.replace(/,(\s*[}\]])/g, "$1");
 
-    for (const [agentName, agentDef] of Object.entries(AGENT_DEFINITIONS)) {
-      for (const app of apps) {
-        if (agentDef.registryNames.some((name) =>
-          app.displayName && app.displayName.toLowerCase().includes(name.toLowerCase())
-        )) {
-          if (!detected.find((d) => d.name === agentName)) {
-            detected.push({
-              name: agentName,
-              source: "registry",
-              evidence: `${hive}\\${regPath}`,
-              installPath: app.installLocation || null,
-              configPath: agentDef.configPath,
-              configType: agentDef.configType,
-              mcpKey: agentDef.mcpKey,
-            });
-          }
-        }
-      }
+    // Try again
+    try {
+      return { success: true, data: JSON.parse(fixed), wasRepaired: true };
+    } catch (e2) {
+      return { success: false, error: e.message, original: e };
     }
   }
-
-  return detected;
 }
 
 /**
- * Detect agents from disk (fallback for portable installs)
- */
-function detectFromDisk() {
-  const detected = [];
-
-  for (const [agentName, agentDef] of Object.entries(AGENT_DEFINITIONS)) {
-    for (const diskPath of agentDef.diskPaths) {
-      if (fs.existsSync(diskPath)) {
-        if (!detected.find((d) => d.name === agentName)) {
-          detected.push({
-            name: agentName,
-            source: "disk",
-            evidence: diskPath,
-            installPath: diskPath,
-            configPath: agentDef.configPath,
-            configType: agentDef.configType,
-            mcpKey: agentDef.mcpKey,
-          });
-        }
-        break;
-      }
-    }
-  }
-
-  return detected;
-}
-
-/**
- * Main detection function - combines registry and disk detection
+ * Detect agents by their signature config files
  */
 async function detectAgents() {
-  const registryAgents = detectFromRegistry();
-  const diskAgents = detectFromDisk();
+  const detected = [];
 
-  // Merge results, preferring registry source
-  const allAgents = [...registryAgents];
+  for (const [agentName, signature] of Object.entries(AGENT_SIGNATURES)) {
+    for (const configPath of signature.configPaths) {
+      if (fs.existsSync(configPath)) {
+        const agent = {
+          name: agentName,
+          configPath,
+          configType: signature.configType,
+          mcpKey: signature.mcpKey,
+          gresKey: signature.gresKey,
+          processNames: signature.processNames,
+          restartMessage: signature.restartMessage,
+          icon: signature.icon,
+          configExists: true,
+        };
 
-  for (const diskAgent of diskAgents) {
-    if (!allAgents.find((a) => a.name === diskAgent.name)) {
-      allAgents.push(diskAgent);
-    }
-  }
+        // Try to parse the config
+        try {
+          const content = fs.readFileSync(configPath, "utf8");
 
-  // Add config file existence check
-  for (const agent of allAgents) {
-    agent.configExists = fs.existsSync(agent.configPath);
+          if (signature.configType === "toml") {
+            const parsed = parseTOML(content);
+            agent.configValid = true;
+            agent.configData = parsed;
+            agent.hasGres = !!(parsed.mcp?.servers?.gres_b2b);
+          } else {
+            const result = parseJSONSafe(content);
+            if (result.success) {
+              agent.configValid = true;
+              agent.configData = result.data;
+              agent.wasRepaired = result.wasRepaired;
 
-    // Check if config is valid JSON/TOML
-    if (agent.configExists) {
-      try {
-        const content = fs.readFileSync(agent.configPath, "utf8");
-        if (agent.configType === "json") {
-          JSON.parse(content);
-          agent.configValid = true;
-        } else {
-          agent.configValid = true; // TOML validation would go here
+              // Check if GRES is already configured
+              const mcpServers = getNestedValue(result.data, signature.mcpKey);
+              agent.hasGres = !!(mcpServers && mcpServers[signature.gresKey]);
+            } else {
+              agent.configValid = false;
+              agent.configError = result.error;
+            }
+          }
+        } catch (e) {
+          agent.configValid = false;
+          agent.configError = e.message;
         }
-      } catch (e) {
-        agent.configValid = false;
-        agent.configError = e.message;
+
+        detected.push(agent);
+        break; // Found config for this agent, move to next
       }
     }
   }
 
   return {
     success: true,
-    agents: allAgents,
-    hasAgents: allAgents.length > 0,
+    agents: detected,
+    hasAgents: detected.length > 0,
+    multipleAgents: detected.length > 1,
   };
 }
 
 /**
- * Get agent process name for zombie detection
+ * Get nested value from object using dot notation
  */
-function getAgentProcessName(agentName) {
-  const processMap = {
-    "Claude Desktop": "Claude",
-    "Cursor": "Cursor",
-    "VS Code (Windsurf)": "Windsurf",
-    "Codex CLI": "codex",
-  };
-  return processMap[agentName] || agentName.split(" ")[0];
+function getNestedValue(obj, path) {
+  const keys = path.split(".");
+  let current = obj;
+
+  for (const key of keys) {
+    if (current === undefined || current === null) return undefined;
+    current = current[key];
+  }
+
+  return current;
+}
+
+/**
+ * Get agent process names for zombie detection
+ */
+function getAgentProcessNames(agentName) {
+  const signature = AGENT_SIGNATURES[agentName];
+  return signature ? signature.processNames : [];
+}
+
+/**
+ * Get restart message for agent
+ */
+function getRestartMessage(agentName) {
+  const signature = AGENT_SIGNATURES[agentName];
+  return signature ? signature.restartMessage : "Please restart the application to apply changes.";
 }
 
 module.exports = {
   detectAgents,
-  getAgentProcessName,
-  AGENT_DEFINITIONS,
+  getAgentProcessNames,
+  getRestartMessage,
+  AGENT_SIGNATURES,
+  parseJSONSafe,
+  parseTOML,
 };

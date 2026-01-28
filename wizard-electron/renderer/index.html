@@ -39,11 +39,12 @@
       <!-- Step 2: Detect Agents -->
       <section id="step-detect" class="step">
         <h2>Detecting AI Agents</h2>
-        <p>Scanning your system for compatible agents...</p>
+        <p>Scanning for config files...</p>
         <div id="agentList" class="agent-list"></div>
         <div id="detectStatus" class="note"></div>
         <div class="step-actions">
           <button class="btn btn-secondary" onclick="wizard.back()">Back</button>
+          <button class="btn btn-primary" id="btnSyncAll" onclick="wizard.syncAll()" style="display: none;">Sync All</button>
           <button class="btn btn-primary" id="btnDetectNext" onclick="wizard.selectAgents()" disabled>Configure Selected</button>
         </div>
       </section>
@@ -97,12 +98,14 @@
         <p>Please close your AI agent to apply changes</p>
         <div class="zombie-alert">
           <h3 id="zombieAgent">Waiting for Agent</h3>
-          <p>Close <strong id="zombieProcess">Agent</strong> completely (check system tray)</p>
+          <p>Close <strong id="zombieProcess">Agent</strong> completely</p>
+          <p class="note" id="zombieRestart">Please close and reopen the application.</p>
           <div class="spinner"></div>
           <p class="note" id="zombieStatus">Checking...</p>
         </div>
         <div class="step-actions mt-4">
-          <button class="btn btn-danger" id="btnForceKill" onclick="wizard.forceKill()">Force Close Agent</button>
+          <button class="btn btn-danger" id="btnForceKill" onclick="wizard.forceKill()">Force Close</button>
+          <button class="btn btn-secondary" id="btnSkipZombie" onclick="wizard.skipZombie()" style="display: none;">Continue Anyway</button>
         </div>
       </section>
 

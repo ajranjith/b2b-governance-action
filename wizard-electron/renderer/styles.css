@@ -615,3 +615,75 @@ body {
 .text-muted { color: var(--text-muted); }
 .text-success { color: var(--success); }
 .text-error { color: var(--error); }
+
+/* ============================================================================
+   Config Type Badges
+   ============================================================================ */
+
+.agent-badge.json {
+  background: rgba(0, 210, 255, 0.15);
+  color: var(--accent-blue);
+}
+
+.agent-badge.toml {
+  background: rgba(124, 58, 237, 0.15);
+  color: var(--accent-purple);
+}
+
+.agent-badge.configured {
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--success);
+}
+
+.agent-item.configured {
+  opacity: 0.6;
+}
+
+.agent-item.invalid {
+  border-color: var(--warning);
+}
+
+.agent-error {
+  font-size: 0.6875rem;
+  color: var(--error);
+  margin-top: 4px;
+}
+
+/* ============================================================================
+   Dialog Overlay
+   ============================================================================ */
+
+.dialog-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.repair-dialog {
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  padding: 24px;
+  max-width: 400px;
+  width: 90%;
+  backdrop-filter: blur(12px);
+}
+
+.repair-dialog h3 {
+  color: var(--warning);
+  font-size: 1rem;
+  margin-bottom: 12px;
+}
+
+.repair-dialog p {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}

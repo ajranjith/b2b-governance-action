@@ -1,22 +1,24 @@
 /**
  * GRES B2B Setup Wizard - State Machine Controller
  *
- * State-Validation Loop:
- * 1. Binary Integrity Test (download + checksum + --version)
- * 2. PATH Environment Test (update + where gres-b2b)
- * 3. MCP Connection Test (gres-b2b mcp selftest)
- *
- * Flow: Welcome → Detect → Install → Zombie → Verify → Success
+ * Protocol-first detection with safe config merges:
+ * 1. Detect agents by signature config files (Codex TOML, Claude/Cursor/Windsurf JSON)
+ * 2. Offer "Sync All" if multiple agents detected
+ * 3. Backup → Parse → Upsert GRES only → Never delete existing MCP
+ * 4. Zombie guard with agent-specific restart messages
+ * 5. MCP handshake verification
+ * 6. Detached scan with progress UI
  */
 
 const wizard = {
   currentStep: "welcome",
   steps: ["welcome", "detect", "install", "zombie", "verify", "success"],
   selectedAgents: [],
+  detectedAgents: [],
   data: {
     version: "",
     binaryPath: "",
-    configPath: "",
+    installDir: "",
   },
 
   // ========================================================================
@@ -30,7 +32,7 @@ const wizard = {
   updateVersion() {
     const versionEl = document.getElementById("wizardVersion");
     if (versionEl) {
-      versionEl.textContent = "v1.0.0";
+      versionEl.textContent = "v1.1.0";
     }
   },
 
@@ -65,16 +67,18 @@ const wizard = {
   },
 
   // ========================================================================
-  // Step 2: Agent Detection
+  // Step 2: Agent Detection (Protocol-First by Config Files)
   // ========================================================================
   async runDetection() {
     const agentList = document.getElementById("agentList");
     const detectStatus = document.getElementById("detectStatus");
     const btnNext = document.getElementById("btnDetectNext");
+    const btnSyncAll = document.getElementById("btnSyncAll");
 
-    agentList.innerHTML = '<div class="note">Scanning...</div>';
-    detectStatus.textContent = "Checking Registry and disk locations...";
+    agentList.innerHTML = '<div class="note">Scanning for config files...</div>';
+    detectStatus.textContent = "Checking Codex TOML, Claude JSON, Cursor JSON, Windsurf JSON...";
     btnNext.disabled = true;
+    if (btnSyncAll) btnSyncAll.style.display = "none";
 
     try {
       const result = await window.gres.detect.agents();
@@ -83,64 +87,50 @@ const wizard = {
         throw new Error(result.error || "Detection failed");
       }
 
-      const agents = result.agents || [];
+      this.detectedAgents = result.agents || [];
 
-      if (agents.length === 0) {
+      if (this.detectedAgents.length === 0) {
         agentList.innerHTML = `
-          <div class="note">No compatible AI agents found.</div>
+          <div class="note">No agent config files found.</div>
           <p class="note" style="margin-top: 12px;">
-            Supported: Claude Desktop, Cursor, VS Code (Windsurf), Codex CLI
+            Supported: Codex CLI, Claude Desktop, Cursor, Windsurf
           </p>
         `;
-        detectStatus.textContent = "Install a supported AI agent and try again.";
+        detectStatus.textContent = "Create a config file for your AI agent first.";
         return;
       }
 
-      // Render agent list with checkboxes
-      agentList.innerHTML = agents
-        .map(
-          (agent, index) => `
-          <label class="agent-item" data-agent="${agent.name}">
-            <input type="checkbox" name="agent" value="${agent.name}" data-index="${index}">
+      // Render agent list with status badges
+      agentList.innerHTML = this.detectedAgents
+        .map((agent, index) => `
+          <label class="agent-item ${agent.hasGres ? 'configured' : ''} ${!agent.configValid ? 'invalid' : ''}" data-agent="${agent.name}">
+            <input type="checkbox" name="agent" value="${agent.name}" data-index="${index}" ${!agent.hasGres ? 'checked' : ''}>
             <div class="agent-info">
               <div class="agent-name">${agent.name}</div>
-              <div class="agent-source">${agent.path || agent.configPath || "Detected"}</div>
+              <div class="agent-source">${agent.configPath}</div>
+              ${!agent.configValid ? `<div class="agent-error">Parse error</div>` : ''}
             </div>
-            <span class="agent-badge ${agent.source === "registry" ? "registry" : "disk"}">
-              ${agent.source === "registry" ? "Registry" : "Disk"}
-            </span>
+            <span class="agent-badge ${agent.configType}">${agent.configType.toUpperCase()}</span>
+            ${agent.hasGres ? '<span class="agent-badge configured">Configured</span>' : ''}
           </label>
-        `
-        )
+        `)
         .join("");
-
-      // Store agents data for later use
-      this.detectedAgents = agents;
 
       // Add checkbox listeners
       agentList.querySelectorAll('input[type="checkbox"]').forEach((checkbox) => {
         checkbox.addEventListener("change", () => this.updateAgentSelection());
       });
 
-      // Add click handler to label for better UX
-      agentList.querySelectorAll(".agent-item").forEach((item) => {
-        item.addEventListener("click", (e) => {
-          if (e.target.tagName !== "INPUT") {
-            const checkbox = item.querySelector('input[type="checkbox"]');
-            checkbox.checked = !checkbox.checked;
-            this.updateAgentSelection();
-          }
-        });
-      });
-
-      detectStatus.textContent = `Found ${agents.length} agent(s). Select the ones to configure.`;
-
-      // Auto-select first agent
-      const firstCheckbox = agentList.querySelector('input[type="checkbox"]');
-      if (firstCheckbox) {
-        firstCheckbox.checked = true;
-        this.updateAgentSelection();
+      // Show Sync All button if multiple agents
+      if (btnSyncAll && this.detectedAgents.length > 1) {
+        btnSyncAll.style.display = "inline-block";
       }
+
+      this.updateAgentSelection();
+
+      const unconfigured = this.detectedAgents.filter(a => !a.hasGres).length;
+      detectStatus.textContent = `Found ${this.detectedAgents.length} agent(s). ${unconfigured} need configuration.`;
+
     } catch (err) {
       agentList.innerHTML = `<div class="note text-error">Error: ${err.message}</div>`;
       detectStatus.textContent = "Detection failed. Please try again.";
@@ -154,22 +144,25 @@ const wizard = {
       return this.detectedAgents[index];
     });
 
-    // Update visual selection
     document.querySelectorAll(".agent-item").forEach((item) => {
       const checkbox = item.querySelector('input[type="checkbox"]');
       item.classList.toggle("selected", checkbox.checked);
     });
 
-    // Enable/disable next button
     const btnNext = document.getElementById("btnDetectNext");
     btnNext.disabled = this.selectedAgents.length === 0;
   },
 
-  selectAgents() {
-    if (this.selectedAgents.length === 0) {
-      return;
-    }
+  syncAll() {
+    document.querySelectorAll('#agentList input[type="checkbox"]').forEach(cb => {
+      cb.checked = true;
+    });
+    this.updateAgentSelection();
+    this.selectAgents();
+  },
 
+  selectAgents() {
+    if (this.selectedAgents.length === 0) return;
     this.showStep("install");
     this.runInstallation();
   },
@@ -192,31 +185,27 @@ const wizard = {
     const setStepStatus = (stepId, status, detail) => {
       const stepEl = document.getElementById(`step-${stepId}`);
       const detailEl = document.getElementById(`detail-${stepId}`);
-
       stepEl.className = "progress-step " + status;
       if (detail) detailEl.textContent = detail;
-
-      // Update status icon
       const statusEl = stepEl.querySelector(".step-status");
-      if (status === "active") {
-        statusEl.innerHTML = "";
-      } else if (status === "success") {
-        statusEl.innerHTML = "&#10003;";
-      } else if (status === "error") {
-        statusEl.innerHTML = "&#10007;";
-      }
+      if (status === "active") statusEl.innerHTML = "";
+      else if (status === "success") statusEl.innerHTML = "&#10003;";
+      else if (status === "error") statusEl.innerHTML = "&#10007;";
     };
 
-    // Reset all steps
     steps.forEach((s) => setStepStatus(s, "", "Waiting..."));
     setProgress(0, "Starting...");
 
     try {
-      // Step 1: Download binary
-      setStepStatus("download", "active", "Downloading...");
-      setProgress(5, "Downloading binary from GitHub...");
+      // Get install paths
+      const paths = await window.gres.install.getPaths();
+      this.data.installDir = paths.installDir;
+      this.data.binaryPath = paths.binaryPath;
 
-      // Set up progress listener
+      // Step 1: Download binary to %LOCALAPPDATA%\Programs\gres-b2b
+      setStepStatus("download", "active", "Downloading...");
+      setProgress(5, "Downloading from GitHub Releases...");
+
       window.gres.install.onProgress((percent) => {
         setProgress(5 + Math.floor(percent * 0.2), `Downloading... ${percent}%`);
       });
@@ -229,110 +218,154 @@ const wizard = {
       }
 
       this.data.version = downloadResult.version;
-      this.data.binaryPath = downloadResult.path;
       setStepStatus("download", "success", `v${downloadResult.version}`);
 
       // Step 2: Verify checksum
-      setStepStatus("checksum", "active", "Calculating...");
+      setStepStatus("checksum", "active", "Verifying...");
       setProgress(30, "Verifying binary integrity...");
 
-      const checksumResult = await window.gres.install.verifyChecksum({
-        path: downloadResult.path,
-      });
-
+      const checksumResult = await window.gres.install.verifyChecksum();
       if (!checksumResult.success) {
-        throw new Error(checksumResult.error || "Checksum verification failed");
+        throw new Error(checksumResult.error || "Checksum failed");
       }
-
-      setStepStatus("checksum", "success", checksumResult.checksum.substring(0, 12) + "...");
+      setStepStatus("checksum", "success", (checksumResult.checksum || "").substring(0, 12) + "...");
 
       // Step 3: Configure PATH
-      setStepStatus("path", "active", "Updating registry...");
+      setStepStatus("path", "active", "Updating PATH...");
       setProgress(50, "Configuring system PATH...");
 
       const pathResult = await window.gres.install.applyPath();
-
       if (!pathResult.success) {
-        throw new Error(pathResult.error || "PATH configuration failed");
+        throw new Error(pathResult.error || "PATH failed");
       }
+      setStepStatus("path", "success", pathResult.alreadyInPath ? "Already set" : "Updated");
 
-      setStepStatus(
-        "path",
-        "success",
-        pathResult.alreadyInPath ? "Already configured" : "Updated"
-      );
-
-      // Step 4: Write agent configs (non-destructive merge)
-      setStepStatus("config", "active", "Merging configs...");
+      // Step 4: Write agent configs (safe merge with backup)
+      setStepStatus("config", "active", "Configuring agents...");
       setProgress(70, "Writing agent configurations...");
 
-      let configPath = "";
+      let successCount = 0;
+      let errorCount = 0;
+
       for (const agent of this.selectedAgents) {
-        const configResult = await window.gres.config.write({
-          agent: agent.name,
-          configPath: agent.configPath,
-          binaryPath: this.data.binaryPath,
-        });
+        const configResult = await window.gres.config.write(agent);
 
-        if (!configResult.success) {
-          throw new Error(`Config write failed for ${agent.name}: ${configResult.error}`);
-        }
-
-        configPath = configResult.path;
-
-        // If backup was created, note it
-        if (configResult.backup) {
-          console.log(`Backup created: ${configResult.backup}`);
+        if (configResult.success) {
+          successCount++;
+        } else if (configResult.needsRepair) {
+          const repaired = await this.handleConfigError(agent, configResult);
+          if (repaired) successCount++;
+          else errorCount++;
+        } else {
+          errorCount++;
         }
       }
 
-      this.data.configPath = configPath;
-      setStepStatus("config", "success", `${this.selectedAgents.length} agent(s)`);
+      if (errorCount > 0 && successCount === 0) {
+        throw new Error(`Failed to configure all ${errorCount} agent(s)`);
+      }
+
+      setStepStatus("config", "success", `${successCount} agent(s)`);
       setProgress(100, "Installation complete!");
 
-      // Check if any agents are running (need zombie guard)
       await this.sleep(500);
       await this.checkForRunningAgents();
+
     } catch (err) {
       const failedStep = steps.find((s) => {
         const el = document.getElementById(`step-${s}`);
         return el.classList.contains("active");
       });
-
-      if (failedStep) {
-        setStepStatus(failedStep, "error", err.message);
-      }
-
+      if (failedStep) setStepStatus(failedStep, "error", err.message);
       this.showError("Installation Failed", err.message);
     }
+  },
+
+  async handleConfigError(agent, result) {
+    const choice = await this.showRepairDialog(agent, result.error);
+    if (choice === "repair") {
+      const repairResult = await window.gres.config.repair(agent);
+      return repairResult.success;
+    } else if (choice === "open") {
+      await window.gres.config.open(agent.configPath);
+      return false;
+    }
+    return false;
+  },
+
+  showRepairDialog(agent, error) {
+    return new Promise((resolve) => {
+      const overlay = document.createElement("div");
+      overlay.className = "dialog-overlay";
+      overlay.innerHTML = `
+        <div class="repair-dialog">
+          <h3>Config Parse Error</h3>
+          <p><strong>${agent.name}</strong> config could not be parsed:</p>
+          <div class="error-box" style="font-size: 0.75rem; max-height: 60px; overflow: auto;">${error}</div>
+          <p style="margin-top: 12px;">What would you like to do?</p>
+          <div class="step-actions" style="margin-top: 16px;">
+            <button class="btn btn-danger" id="btnRepair">Repair (Overwrite)</button>
+            <button class="btn btn-secondary" id="btnOpen">Open File</button>
+            <button class="btn btn-secondary" id="btnSkip">Skip</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(overlay);
+
+      overlay.querySelector("#btnRepair").onclick = () => {
+        document.body.removeChild(overlay);
+        resolve("repair");
+      };
+      overlay.querySelector("#btnOpen").onclick = () => {
+        document.body.removeChild(overlay);
+        resolve("open");
+      };
+      overlay.querySelector("#btnSkip").onclick = () => {
+        document.body.removeChild(overlay);
+        resolve("skip");
+      };
+    });
   },
 
   // ========================================================================
   // Step 4: Zombie Guard
   // ========================================================================
   async checkForRunningAgents() {
-    // Check if any selected agents are running
-    let runningAgent = null;
+    const result = await window.gres.zombie.checkAll(this.selectedAgents);
 
-    for (const agent of this.selectedAgents) {
-      const result = await window.gres.zombie.check(agent.name);
-      if (result.running) {
-        runningAgent = { ...agent, processes: result.processes };
-        break;
+    if (result.hasRunning) {
+      const running = result.runningAgents[0];
+      this.currentZombieAgent = running;
+
+      document.getElementById("zombieAgent").textContent = running.agentName;
+      document.getElementById("zombieProcess").textContent = running.processes?.join(", ") || running.agentName;
+
+      // Agent-specific restart message (Codex = terminal restart)
+      const restartEl = document.getElementById("zombieRestart");
+      if (restartEl) {
+        restartEl.textContent = running.restartMessage || "Please close the application.";
       }
-    }
 
-    if (runningAgent) {
-      // Show zombie guard step
-      this.currentZombieAgent = runningAgent;
-      document.getElementById("zombieAgent").textContent = runningAgent.name;
-      document.getElementById("zombieProcess").textContent = runningAgent.processes?.[0] || runningAgent.name;
-      document.getElementById("zombieStatus").textContent = "Waiting for process to exit...";
+      const statusEl = document.getElementById("zombieStatus");
+      const forceBtn = document.getElementById("btnForceKill");
+      const skipBtn = document.getElementById("btnSkipZombie");
+
+      if (running.isCodex) {
+        statusEl.textContent = "Restart your terminal/CLI session to apply changes.";
+        if (forceBtn) forceBtn.style.display = "none";
+        if (skipBtn) skipBtn.style.display = "inline-block";
+      } else {
+        statusEl.textContent = "Waiting for process to exit...";
+        if (forceBtn) forceBtn.style.display = "inline-block";
+        if (skipBtn) skipBtn.style.display = "none";
+      }
 
       this.showStep("zombie");
-      this.startZombieWatch();
+
+      if (!running.isCodex) {
+        this.startZombieWatch();
+      }
     } else {
-      // No running agents, proceed to verification
       this.showStep("verify");
       this.runVerification();
     }
@@ -341,27 +374,26 @@ const wizard = {
   async startZombieWatch() {
     const statusEl = document.getElementById("zombieStatus");
 
-    // Set up status listener
     window.gres.zombie.onStatus((status) => {
       statusEl.textContent = status.message || "Checking...";
     });
 
     try {
       const result = await window.gres.zombie.waitForExit({
-        agentName: this.currentZombieAgent.name,
-        timeout: 120000, // 2 minutes
-        pollInterval: 3000, // Check every 3 seconds
+        agentName: this.currentZombieAgent.agentName,
+        timeout: 120000,
+        pollInterval: 3000,
       });
 
       window.gres.zombie.offStatus();
 
       if (result.exited) {
-        statusEl.textContent = "Agent closed. Proceeding...";
+        statusEl.textContent = "Process exited. Proceeding...";
         await this.sleep(1000);
         this.showStep("verify");
         this.runVerification();
       } else if (result.timeout) {
-        statusEl.textContent = "Timeout waiting for agent. Use Force Close or close manually.";
+        statusEl.textContent = "Timeout. Use Force Close or close manually.";
       }
     } catch (err) {
       window.gres.zombie.offStatus();
@@ -369,20 +401,25 @@ const wizard = {
     }
   },
 
+  skipZombie() {
+    this.showStep("verify");
+    this.runVerification();
+  },
+
   async forceKill() {
     const statusEl = document.getElementById("zombieStatus");
-    statusEl.textContent = "Force closing agent...";
+    statusEl.textContent = "Force closing...";
 
     try {
-      const result = await window.gres.zombie.forceKill(this.currentZombieAgent.name);
+      const result = await window.gres.zombie.forceKill(this.currentZombieAgent.agentName);
 
       if (result.success) {
-        statusEl.textContent = "Agent closed. Proceeding...";
+        statusEl.textContent = "Process closed. Proceeding...";
         await this.sleep(1000);
         this.showStep("verify");
         this.runVerification();
       } else {
-        statusEl.textContent = result.error || "Failed to close agent";
+        statusEl.textContent = result.error || "Failed to close process";
       }
     } catch (err) {
       statusEl.textContent = `Error: ${err.message}`;
@@ -390,25 +427,13 @@ const wizard = {
   },
 
   // ========================================================================
-  // Step 5: Verification - State Validation Loop
+  // Step 5: Verification (MCP Handshake)
   // ========================================================================
   async runVerification() {
     const tests = [
-      {
-        id: "binary",
-        name: "Binary Test",
-        fn: () => window.gres.verify.binaryVersion(),
-      },
-      {
-        id: "path",
-        name: "PATH Test",
-        fn: () => window.gres.verify.pathWhere(),
-      },
-      {
-        id: "mcp",
-        name: "MCP Handshake",
-        fn: () => window.gres.mcp.selftest(),
-      },
+      { id: "binary", fn: () => window.gres.verify.binaryVersion() },
+      { id: "path", fn: () => window.gres.verify.pathWhere() },
+      { id: "mcp", fn: () => window.gres.mcp.selftest() },
     ];
 
     let allPassed = true;
@@ -418,7 +443,6 @@ const wizard = {
       const detailEl = document.getElementById(`verify-${test.id}-detail`);
       const statusEl = stepEl.querySelector(".step-status");
 
-      // Mark as active
       stepEl.className = "progress-step active";
       statusEl.innerHTML = "";
       detailEl.textContent = "Testing...";
@@ -446,26 +470,17 @@ const wizard = {
       await this.sleep(400);
     }
 
-    // Show result
     const resultEl = document.getElementById("verifyResult");
 
     if (allPassed) {
-      resultEl.innerHTML = `
-        <div class="note text-success" style="margin-top: 20px;">
-          All tests passed!
-        </div>
-      `;
-
-      // Proceed to success
+      resultEl.innerHTML = `<div class="note text-success" style="margin-top: 20px;">All tests passed!</div>`;
       await this.sleep(1500);
       this.showSuccess();
     } else {
       resultEl.innerHTML = `
-        <div class="note text-error" style="margin-top: 20px;">
-          Some tests failed. Check the errors above.
-        </div>
+        <div class="note text-error" style="margin-top: 20px;">Some tests failed.</div>
         <div class="step-actions">
-          <button class="btn btn-secondary" onclick="wizard.retry()">Retry Tests</button>
+          <button class="btn btn-secondary" onclick="wizard.retry()">Retry</button>
           <button class="btn btn-primary" onclick="wizard.openDocs()">Get Help</button>
         </div>
       `;
@@ -476,16 +491,14 @@ const wizard = {
   // Step 6: Success
   // ========================================================================
   async showSuccess() {
-    // Update success screen
     document.getElementById("successAgent").textContent =
       this.selectedAgents.map((a) => a.name).join(", ");
     document.getElementById("successVersion").textContent = "v" + this.data.version;
     document.getElementById("successConfig").textContent =
-      this.data.configPath || this.selectedAgents[0]?.configPath || "-";
+      this.selectedAgents.length + " agent(s)";
 
     this.showStep("success");
 
-    // Create desktop shortcut
     try {
       await window.gres.util.createShortcut({
         name: "GRES B2B Dashboard",
@@ -493,13 +506,29 @@ const wizard = {
         args: ["dashboard"],
       });
     } catch (err) {
-      console.warn("Failed to create shortcut:", err);
+      console.warn("Shortcut failed:", err);
     }
   },
 
   // ========================================================================
-  // Error Handling
+  // Actions
   // ========================================================================
+  async launchDashboard() {
+    try {
+      const portResult = await window.gres.scan.findPort(8080);
+      if (portResult.success) {
+        const scanResult = await window.gres.scan.startDetached({
+          port: portResult.port,
+          live: true,
+        });
+        await this.sleep(1500);
+        await window.gres.util.openUrl(`http://localhost:${portResult.port}`);
+      }
+    } catch (err) {
+      window.gres.util.openUrl("http://localhost:8080");
+    }
+  },
+
   showError(title, message, details = "") {
     document.getElementById("errorTitle").textContent = title;
     document.getElementById("errorMessage").textContent = message;
@@ -508,51 +537,27 @@ const wizard = {
   },
 
   retry() {
-    // Reset verification UI
     ["binary", "path", "mcp"].forEach((id) => {
       const stepEl = document.getElementById(`verify-${id}`);
       const detailEl = document.getElementById(`verify-${id}-detail`);
       const statusEl = stepEl.querySelector(".step-status");
-
       stepEl.className = "progress-step";
       statusEl.innerHTML = "";
       detailEl.textContent = "Waiting...";
     });
-
     document.getElementById("verifyResult").innerHTML = "";
-
-    // Re-run verification
     this.runVerification();
   },
 
-  // ========================================================================
-  // External Actions
-  // ========================================================================
   openDocs() {
     window.gres.util.openUrl("https://github.com/ajranjith/b2b-governance-action#readme");
   },
 
-  async launchDashboard() {
-    // Find an available port and launch dashboard
-    try {
-      const port = await window.gres.scan.findPort(3000);
-      await window.gres.scan.start({ port });
-      await window.gres.util.openUrl(`http://localhost:${port}`);
-    } catch (err) {
-      // Fallback: just try to open default port
-      window.gres.util.openUrl("http://localhost:3000");
-    }
-  },
-
-  // ========================================================================
-  // Utilities
-  // ========================================================================
   sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
   },
 };
 
-// Initialize on load
 document.addEventListener("DOMContentLoaded", () => {
   wizard.init();
 });
