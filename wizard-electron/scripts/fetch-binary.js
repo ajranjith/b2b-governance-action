@@ -12,6 +12,8 @@ const path = require("path");
 const CLI_DIR = path.join(__dirname, "..", "..", "cli");
 const OUTPUT_DIR = path.join(__dirname, "..", "resources");
 const OUTPUT_PATH = path.join(OUTPUT_DIR, "gres-b2b.exe");
+const CONFIG_SRC = path.join(CLI_DIR, "gres-b2b.config.json");
+const CONFIG_DST = path.join(OUTPUT_DIR, "gres-b2b.config.json");
 
 // Version to embed in binary
 const VERSION = process.env.GRES_VERSION || "1.0.0";
@@ -80,6 +82,14 @@ async function main() {
     console.log(`\nBuild successful!`);
     console.log(`  Output: ${OUTPUT_PATH}`);
     console.log(`  Size: ${(stats.size / 1024 / 1024).toFixed(2)} MB`);
+
+    // Copy config.json alongside the binary
+    if (fs.existsSync(CONFIG_SRC)) {
+      fs.copyFileSync(CONFIG_SRC, CONFIG_DST);
+      console.log(`  Config: ${CONFIG_DST}`);
+    } else {
+      console.warn(`  Warning: Config file not found at ${CONFIG_SRC}`);
+    }
   } catch (err) {
     console.error("Build failed:", err.message);
 

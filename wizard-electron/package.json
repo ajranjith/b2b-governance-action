@@ -48,6 +48,10 @@
       {
         "from": "resources/gres-b2b.exe",
         "to": "gres-b2b.exe"
+      },
+      {
+        "from": "resources/gres-b2b.config.json",
+        "to": "gres-b2b.config.json"
       }
     ],
     "publish": {

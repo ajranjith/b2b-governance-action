@@ -15,11 +15,12 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 const { execSync, spawn } = require("child_process");
-const { app, shell } = require("electron");
+const { shell } = require("electron");
 const os = require("os");
 const { INSTALL_DIR, BINARY_PATH } = require("./config");
 
 const BINARY_NAME = "gres-b2b.exe";
+const CONFIG_NAME = "gres-b2b.config.json";
 const MAX_RETRY_ATTEMPTS = 3;
 const RETRY_DELAY_MS = 1000;
 
@@ -31,6 +32,21 @@ function getBundledBinaryPath() {
   // In development: resources/gres-b2b.exe (relative to app root)
   const resourcesPath = process.resourcesPath || path.join(__dirname, "..", "..");
   return path.join(resourcesPath, "gres-b2b.exe");
+}
+
+/**
+ * Get the path to the bundled config in extraResources
+ */
+function getBundledConfigPath() {
+  const resourcesPath = process.resourcesPath || path.join(__dirname, "..", "..");
+  return path.join(resourcesPath, CONFIG_NAME);
+}
+
+/**
+ * Get the install path for the config file
+ */
+function getConfigInstallPath() {
+  return path.join(INSTALL_DIR, CONFIG_NAME);
 }
 
 /**
@@ -201,6 +217,19 @@ async function downloadBinary(opts = {}) {
 
     if (opts.onProgress) opts.onProgress(50);
 
+    // Step 3b: Copy config file alongside binary
+    const bundledConfigPath = getBundledConfigPath();
+    const configInstallPath = getConfigInstallPath();
+    if (fs.existsSync(bundledConfigPath)) {
+      try {
+        fs.copyFileSync(bundledConfigPath, configInstallPath);
+        console.log("Config file installed:", configInstallPath);
+      } catch (e) {
+        console.warn("Failed to copy config file:", e.message);
+        // Non-fatal - binary can still work with defaults
+      }
+    }
+
     // Step 4: Unblock the binary (removes Mark of the Web)
     unblockFile(BINARY_PATH);
 
@@ -359,9 +388,12 @@ module.exports = {
   runVersionCheck,
   hasBundledBinary,
   getBundledBinaryPath,
+  getBundledConfigPath,
+  getConfigInstallPath,
   createDesktopShortcut,
   openDocs,
   openDashboard,
   checkWritePermission,
   BINARY_NAME,
+  CONFIG_NAME,
 };
