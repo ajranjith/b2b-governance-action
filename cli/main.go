@@ -171,6 +171,9 @@ func main() {
 			os.Exit(1)
 		}
 
+	case "verify":
+		runVerify()
+
 	case "doctor":
 		runDoctor()
 
@@ -192,6 +195,7 @@ Usage:
   gres-b2b --config <path>        Use specific config file
   gres-b2b mcp serve              Start MCP server (JSON-RPC 2.0 over stdio)
   gres-b2b mcp selftest           Run MCP handshake self-test
+  gres-b2b verify                 Run governance verify with gating
   gres-b2b doctor                 Run prerequisite checks
   gres-b2b --help                 Show this help message
 
@@ -227,7 +231,7 @@ func loadConfig(configFlag string) (*Config, string, error) {
 			Hints: ReportConfig{Enabled: true, Path: ".b2b/hints.json"},
 		},
 		Install: InstallConfig{
-			CanonicalDir: expandEnv("%ProgramFiles%\\GRES\\B2B"),
+			CanonicalDir: "%ProgramFiles%\\GRES\\B2B",
 			ExeName:      "gres-b2b.exe",
 			DuplicateDetection: DuplicateDetectionConfig{
 				Enabled:    true,
@@ -343,8 +347,33 @@ func mergeConfigDefaults(cfg, defaults *Config) {
 }
 
 // expandEnv expands Windows environment variables in a path
+// Handles both %VAR% (Windows) and $VAR/${VAR} (Unix) syntax
 func expandEnv(path string) string {
-	return os.ExpandEnv(strings.ReplaceAll(path, "%", "$"))
+	if runtime.GOOS != "windows" {
+		return os.ExpandEnv(path)
+	}
+
+	// Windows: expand %VAR% patterns
+	result := path
+	for {
+		start := strings.Index(result, "%")
+		if start == -1 {
+			break
+		}
+		end := strings.Index(result[start+1:], "%")
+		if end == -1 {
+			break
+		}
+		end += start + 1
+
+		varName := result[start+1 : end]
+		varValue := os.Getenv(varName)
+
+		// Replace %VAR% with its value
+		result = result[:start] + varValue + result[end+1:]
+	}
+
+	return result
 }
 
 // resolveExePath resolves the executable path using canonical directory preference
@@ -391,11 +420,17 @@ func resolveExePath() (string, []string) {
 				more = len(duplicates) - maxResults
 			}
 
-			warning := fmt.Sprintf("Duplicate detected warning: Another %s exists at: %s", exeName, strings.Join(shown, ", "))
-			if more > 0 {
-				warning += fmt.Sprintf(" + %d more", more)
+			// Use exact required phrase
+			warning := "WARNING: Duplicate detected warning\n"
+			warning += fmt.Sprintf("  Canonical: %s\n", canonicalPath)
+			warning += fmt.Sprintf("  Duplicates found:\n")
+			for _, dup := range shown {
+				warning += fmt.Sprintf("    - %s\n", dup)
 			}
-			warning += fmt.Sprintf(". Proceeding with canonical install: %s", canonicalPath)
+			if more > 0 {
+				warning += fmt.Sprintf("    + %d more\n", more)
+			}
+			warning += "  Proceeding with canonical install."
 			warnings = append(warnings, warning)
 		}
 		return canonicalPath, warnings
@@ -638,8 +673,14 @@ func runDoctor() {
 	}
 
 	// Check 3: Canonical directory
-	canonicalDir := expandEnv(config.Install.CanonicalDir)
-	canonicalPath := filepath.Join(canonicalDir, config.Install.ExeName)
+	canonicalDirRaw := config.Install.CanonicalDir
+	canonicalDirExpanded := expandEnv(canonicalDirRaw)
+	canonicalPath := filepath.Join(canonicalDirExpanded, config.Install.ExeName)
+
+	// Show both raw and expanded paths
+	fmt.Printf("[INFO] CanonicalDir (raw): %s\n", canonicalDirRaw)
+	fmt.Printf("[INFO] CanonicalDir (expanded): %s\n", canonicalDirExpanded)
+
 	if _, err := os.Stat(canonicalPath); err == nil {
 		fmt.Printf("[OK] Canonical exe: %s\n", canonicalPath)
 	} else {
