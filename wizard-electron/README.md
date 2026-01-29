@@ -108,7 +108,20 @@ await window.gres.util.getInstallPath()
 | File | Location |
 |------|----------|
 | Binary | `%LOCALAPPDATA%\Programs\gres-b2b\gres-b2b.exe` |
-| Config | `%LOCALAPPDATA%\gres-b2b\config.toml` |
+| Config | `%LOCALAPPDATA%\Programs\gres-b2b\gres-b2b.config.json` |
+| User Config | `%LOCALAPPDATA%\gres-b2b\config.toml` |
+
+## Bundled Resources
+
+The wizard bundles the CLI binary and configuration file in `extraResources`:
+
+```
+resources/
+├── gres-b2b.exe           # CLI binary
+└── gres-b2b.config.json   # Default configuration
+```
+
+Both files are installed to the install directory during setup.
 
 ## Why Electron?
 

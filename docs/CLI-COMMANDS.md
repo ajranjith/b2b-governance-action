@@ -242,6 +242,67 @@ The progress page is embedded in the binary and served locally - it does NOT loa
 
 ---
 
+## Configuration File
+
+The CLI uses `gres-b2b.config.json` for default settings.
+
+### Config File Location
+
+Config files are searched in this order:
+
+1. `--config` flag (explicit path)
+2. Same directory as the executable
+3. `%ProgramData%\GRES\B2B\gres-b2b.config.json`
+4. Built-in defaults
+
+### Config Schema (v1.0)
+
+```json
+{
+  "schemaVersion": "1.0",
+  "app": {
+    "name": "GRES B2B Governance Engine",
+    "channel": "release"
+  },
+  "paths": {
+    "workspaceRoot": ".",
+    "outputDir": ".b2b",
+    "cacheDir": ".b2b/cache"
+  },
+  "reports": {
+    "formats": ["html", "json", "sarif"],
+    "autoOpen": true
+  },
+  "install": {
+    "canonicalDir": "%ProgramFiles%\\GRES\\B2B",
+    "exeName": "gres-b2b.exe",
+    "duplicateDetection": {
+      "enabled": true,
+      "severity": "warning",
+      "maxResults": 5,
+      "scanDirs": [
+        "%ProgramFiles%",
+        "%LOCALAPPDATA%",
+        "%APPDATA%",
+        "%USERPROFILE%"
+      ]
+    }
+  }
+}
+```
+
+### Duplicate Detection
+
+The CLI detects duplicate installations and warns the user:
+
+```
+Duplicate detected warning: Another gres-b2b.exe exists at: C:\path\to\other.exe
+```
+
+This is **warning-only** and never blocks execution. The `severity` field is always forced to `"warning"` regardless of config file setting.
+
+---
+
 ## Environment Variables
 
 | Variable | Description |
@@ -294,3 +355,25 @@ gres-b2b scan --workspace=/path/to/project
 # Run scan and output JSON
 gres-b2b scan --json
 ```
+
+---
+
+## Building Releases
+
+To build a release ZIP containing the CLI and all required files:
+
+```powershell
+cd cli
+.\build-release.ps1 -Version "1.0.0"
+```
+
+This produces `dist/gres-b2b-v1.0.0-windows-amd64.zip` containing:
+
+| File | Description |
+|------|-------------|
+| `gres-b2b.exe` | Standalone Windows binary |
+| `gres-b2b.config.json` | Default configuration file |
+| `README.txt` | Quick start guide |
+| `checksums.txt` | SHA256 checksums for verification |
+
+Users should extract to `%LOCALAPPDATA%\Programs\gres-b2b\` or `C:\Program Files\GRES\B2B\`.
