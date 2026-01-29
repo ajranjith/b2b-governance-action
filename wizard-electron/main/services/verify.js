@@ -1,24 +1,25 @@
 /**
  * Verify Service - Handles binary and PATH verification
+ *
+ * All verification uses full absolute paths - never relies on PATH.
  */
 
 const { spawn, execSync } = require("child_process");
 const path = require("path");
 const os = require("os");
 const fs = require("fs");
+const { INSTALL_DIR, BINARY_PATH } = require("./config");
 
-const INSTALL_DIR = path.join(os.homedir(), "AppData", "Local", "Programs", "gres-b2b");
-const BINARY_NAME = "gres-b2b.exe";
 const CONFIG_DIR = path.join(os.homedir(), "AppData", "Local", "gres-b2b");
 const CONFIG_NAME = "config.toml";
 
 /**
  * Verify binary version by running --version
+ * Always uses full absolute path - never relies on PATH
+ * @param {string} binaryPath - Full path to binary (optional, defaults to BINARY_PATH)
  */
-async function binaryVersion() {
+async function binaryVersion(binaryPath = BINARY_PATH) {
   return new Promise((resolve) => {
-    const binaryPath = path.join(INSTALL_DIR, BINARY_NAME);
-
     if (!fs.existsSync(binaryPath)) {
       return resolve({
         success: false,
@@ -133,16 +134,17 @@ async function pathWhere() {
 
 /**
  * Run gres-b2b doctor to check prerequisites
+ * Always uses full absolute path - never relies on PATH
+ * @param {string} binaryPath - Full path to binary (optional, defaults to BINARY_PATH)
  */
-async function doctor() {
+async function doctor(binaryPath = BINARY_PATH) {
   return new Promise((resolve) => {
-    const binaryPath = path.join(INSTALL_DIR, BINARY_NAME);
     const configPath = path.join(CONFIG_DIR, CONFIG_NAME);
 
     if (!fs.existsSync(binaryPath)) {
       return resolve({
         success: false,
-        error: "Binary not found",
+        error: "Binary not found at " + binaryPath,
       });
     }
 
