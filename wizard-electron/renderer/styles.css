@@ -816,3 +816,66 @@ body {
   font-size: 0.75rem;
   font-weight: normal;
 }
+
+/* ============================================================================
+   Section Badges (WZ-001, WZ-002, etc.)
+   ============================================================================ */
+
+.section-badge {
+  display: inline-block;
+  font-size: 0.625rem;
+  padding: 3px 8px;
+  background: rgba(0, 210, 255, 0.15);
+  color: var(--accent-blue);
+  border-radius: 4px;
+  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  font-family: 'SFMono-Regular', Consolas, monospace;
+  margin-right: 8px;
+  vertical-align: middle;
+}
+
+.section-badge.success {
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--success);
+}
+
+.section-badge.error {
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--error);
+}
+
+.section-badge.warning {
+  background: rgba(245, 158, 11, 0.15);
+  color: var(--warning);
+}
+
+/* Preflight Step Styles */
+.preflight-status {
+  text-align: center;
+  padding: 16px;
+}
+
+.preflight-status .error-message {
+  font-size: 0.875rem;
+  color: var(--error);
+  margin-top: 8px;
+}
+
+.preflight-detail {
+  max-height: 150px;
+  overflow-y: auto;
+  text-align: left;
+  margin-top: 16px;
+}
+
+.preflight-detail pre {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  background: var(--bg-darker);
+  padding: 12px;
+  border-radius: 6px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}

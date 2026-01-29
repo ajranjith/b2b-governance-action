@@ -14,7 +14,25 @@ const config = require("./services/config");
 const zombie = require("./services/zombie");
 const update = require("./services/update");
 
+// Import wizard state machine
+const wizardState = require("./services/wizard-state");
+const wizardLogger = require("./services/wizard-logger");
+const { SECTIONS } = require("./services/sections");
+
 let mainWindow;
+
+// Services object for state machine
+const services = {
+  mcp,
+  download,
+  verify,
+  scan,
+  detect,
+  config,
+  zombie,
+  update,
+  pathService,
+};
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -437,4 +455,145 @@ ipcMain.handle("update:cleanup", async () => {
   } catch (err) {
     return { success: false, error: err.message };
   }
+});
+
+// ============================================================================
+// Wizard State Machine (ID-based Sections with Gate Tests)
+// ============================================================================
+
+// Initialize wizard state machine
+ipcMain.handle("wizard:initialize", async () => {
+  try {
+    return wizardState.initialize(services);
+  } catch (err) {
+    wizardLogger.logError("INIT", err);
+    return { success: false, error: err.message };
+  }
+});
+
+// Get current wizard status
+ipcMain.handle("wizard:status", async () => {
+  try {
+    return wizardState.getStatus();
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+// Run preflight check (WZ-001) - must pass before wizard proceeds
+ipcMain.handle("wizard:preflight", async () => {
+  try {
+    const result = await wizardState.runPreflight();
+    return result;
+  } catch (err) {
+    wizardLogger.logError("WZ-001", err);
+    return { pass: false, code: "ERR_EXCEPTION", message: err.message };
+  }
+});
+
+// Run current section
+ipcMain.handle("wizard:runSection", async (_, opts = {}) => {
+  try {
+    const result = await wizardState.runCurrentSection({
+      ...opts,
+      onProgress: (percent) => {
+        mainWindow.webContents.send("wizard:progress", percent);
+      },
+    });
+    mainWindow.webContents.send("wizard:sectionResult", result);
+    return result;
+  } catch (err) {
+    wizardLogger.logError("SECTION", err);
+    return { pass: false, code: "ERR_EXCEPTION", message: err.message };
+  }
+});
+
+// Run a specific section by ID
+ipcMain.handle("wizard:runSectionById", async (_, sectionId, opts = {}) => {
+  try {
+    const result = await wizardState.runSection(sectionId, {
+      ...opts,
+      onProgress: (percent) => {
+        mainWindow.webContents.send("wizard:progress", percent);
+      },
+    });
+    mainWindow.webContents.send("wizard:sectionResult", result);
+    return result;
+  } catch (err) {
+    wizardLogger.logError(sectionId, err);
+    return { pass: false, code: "ERR_EXCEPTION", message: err.message };
+  }
+});
+
+// Advance to next section (only if current passed)
+ipcMain.handle("wizard:advance", async () => {
+  try {
+    return wizardState.advance();
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+// Skip current section (only if allowed)
+ipcMain.handle("wizard:skip", async () => {
+  try {
+    return wizardState.skip();
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+// Get wizard summary
+ipcMain.handle("wizard:summary", async () => {
+  try {
+    return wizardState.getSummary();
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+// Get/set context value
+ipcMain.handle("wizard:getContext", async (_, key) => {
+  return wizardState.getContext(key);
+});
+
+ipcMain.handle("wizard:setContext", async (_, key, value) => {
+  wizardState.setContext(key, value);
+  return { success: true };
+});
+
+// Reset to a specific section (for repair/retry)
+ipcMain.handle("wizard:resetToSection", async (_, sectionId) => {
+  try {
+    return wizardState.resetToSection(sectionId);
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+// Get all sections info
+ipcMain.handle("wizard:sections", async () => {
+  return SECTIONS.map((s) => ({
+    id: s.id,
+    name: s.name,
+    description: s.description,
+    retryPolicy: s.retryPolicy,
+    repairActions: s.repairActions,
+    failMessage: s.failMessage,
+  }));
+});
+
+// Get section result
+ipcMain.handle("wizard:getSectionResult", async (_, sectionId) => {
+  return wizardState.getSectionResult(sectionId);
+});
+
+// Get log file path
+ipcMain.handle("wizard:logPath", async () => {
+  return { path: wizardLogger.getLogPath(), sessionId: wizardLogger.getSessionId() };
+});
+
+// Read recent logs
+ipcMain.handle("wizard:logs", async (_, count = 50) => {
+  return wizardLogger.readRecentLogs(count);
 });

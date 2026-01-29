@@ -1,20 +1,29 @@
 /**
- * GRES B2B Setup Wizard - State Machine Controller
+ * GRES B2B Setup Wizard - ID-based State Machine Controller
  *
- * Protocol-first detection with safe config merges:
- * 1. Detect agents by signature config files (Codex TOML, Claude/Cursor/Windsurf JSON)
- * 2. Offer "Sync All" if multiple agents detected
- * 3. Backup → Parse → Upsert GRES only → Never delete existing MCP
- * 4. Zombie guard with agent-specific restart messages
- * 5. MCP handshake verification
- * 6. Detached scan with progress UI
+ * Section-based architecture with gate tests:
+ * - Each section has a stable ID (WZ-001 to WZ-010)
+ * - "Next" is disabled until section test passes
+ * - Preflight (WZ-001) runs immediately on start
+ * - All transitions logged to ndjson
+ *
+ * Sections:
+ * WZ-001: Preflight (OS/arch, permissions)
+ * WZ-002: Agent Detection
+ * WZ-003: Config Merge
+ * WZ-004: Install Binary
+ * WZ-005: Binary Proof
+ * WZ-006: MCP Selftest
+ * WZ-007: Restart Check
+ * WZ-008-010: Scan (optional)
  */
 
 const wizard = {
-  currentStep: "welcome",
-  steps: ["welcome", "detect", "install", "zombie", "verify", "success"],
+  currentStep: "preflight",
+  steps: ["preflight", "welcome", "detect", "install", "zombie", "verify", "success"],
   selectedAgents: [],
   detectedAgents: [],
+  sectionResults: new Map(),
   data: {
     version: "",
     binaryPath: "",
@@ -22,22 +31,75 @@ const wizard = {
   },
 
   // ========================================================================
-  // Initialization
+  // Initialization with Preflight-First Boot
   // ========================================================================
-  init() {
-    this.showStep("welcome");
+  async init() {
+    this.showStep("preflight");
     this.updateVersion();
+
+    try {
+      // Initialize wizard state machine
+      await window.gres.wizard.initialize();
+
+      // Run preflight (WZ-001) - must pass before proceeding
+      const preflightResult = await window.gres.wizard.preflight();
+      this.sectionResults.set("WZ-001", preflightResult);
+
+      if (!preflightResult.pass) {
+        this.showPreflightError(preflightResult);
+        return;
+      }
+
+      // Preflight passed - show welcome
+      await this.sleep(500);
+      this.showStep("welcome");
+
+    } catch (err) {
+      this.showPreflightError({
+        pass: false,
+        code: "ERR_INIT",
+        message: err.message,
+      });
+    }
+  },
+
+  showPreflightError(result) {
+    const statusEl = document.getElementById("preflightStatus");
+    const detailEl = document.getElementById("preflightDetail");
+    const retryBtn = document.getElementById("btnPreflightRetry");
+
+    statusEl.innerHTML = `
+      <div class="section-badge error">WZ-001 FAILED</div>
+      <div class="error-message">${result.message}</div>
+    `;
+
+    if (result.evidence) {
+      detailEl.innerHTML = `<pre>${JSON.stringify(result.evidence, null, 2)}</pre>`;
+    }
+
+    retryBtn.style.display = "inline-block";
+  },
+
+  async retryPreflight() {
+    document.getElementById("preflightStatus").innerHTML = `
+      <div class="section-badge">WZ-001</div>
+      <div>Running preflight checks...</div>
+    `;
+    document.getElementById("preflightDetail").innerHTML = "";
+    document.getElementById("btnPreflightRetry").style.display = "none";
+
+    await this.init();
   },
 
   updateVersion() {
     const versionEl = document.getElementById("wizardVersion");
     if (versionEl) {
-      versionEl.textContent = "v1.1.0";
+      versionEl.textContent = "v1.2.0";
     }
   },
 
   // ========================================================================
-  // Navigation
+  // Navigation with Gate Tests
   // ========================================================================
   showStep(stepId) {
     document.querySelectorAll(".step").forEach((step) => {
@@ -59,7 +121,7 @@ const wizard = {
   },
 
   // ========================================================================
-  // Step 1: Welcome → Start Detection
+  // Step 1: Welcome -> Start Detection
   // ========================================================================
   start() {
     this.showStep("detect");
@@ -67,13 +129,16 @@ const wizard = {
   },
 
   // ========================================================================
-  // Step 2: Agent Detection (Protocol-First by Config Files)
+  // Step 2: Agent Detection (WZ-002)
   // ========================================================================
   async runDetection() {
     const agentList = document.getElementById("agentList");
     const detectStatus = document.getElementById("detectStatus");
     const btnNext = document.getElementById("btnDetectNext");
     const btnSyncAll = document.getElementById("btnSyncAll");
+    const sectionBadge = document.getElementById("detectSectionBadge");
+
+    if (sectionBadge) sectionBadge.textContent = "WZ-002";
 
     agentList.innerHTML = '<div class="note">Scanning for config files...</div>';
     detectStatus.textContent = "Checking Codex TOML, Claude JSON, Cursor JSON, Windsurf JSON...";
@@ -81,13 +146,13 @@ const wizard = {
     if (btnSyncAll) btnSyncAll.style.display = "none";
 
     try {
-      const result = await window.gres.detect.agents();
+      // Run WZ-002 through state machine
+      const result = await window.gres.wizard.runSectionById("WZ-002");
+      this.sectionResults.set("WZ-002", result);
 
-      if (!result.success) {
-        throw new Error(result.error || "Detection failed");
-      }
-
-      this.detectedAgents = result.agents || [];
+      // Get context to access detected agents
+      const ctx = await window.gres.wizard.getContext();
+      this.detectedAgents = ctx.agents || [];
 
       if (this.detectedAgents.length === 0) {
         agentList.innerHTML = `
@@ -100,8 +165,7 @@ const wizard = {
         return;
       }
 
-      // Check if this is a manual fallback
-      const isManualFallback = result.isManualFallback;
+      const isManualFallback = ctx.isManualFallback;
 
       // Render agent list with status badges
       agentList.innerHTML = this.detectedAgents
@@ -133,16 +197,18 @@ const wizard = {
 
       this.updateAgentSelection();
 
+      // Update status with section result
+      const statusIcon = result.pass ? "PASSED" : "FAILED";
       if (isManualFallback) {
-        detectStatus.textContent = "No agents auto-detected. Using manual configuration.";
+        detectStatus.innerHTML = `<span class="section-badge ${result.pass ? 'success' : 'error'}">${statusIcon}</span> No agents auto-detected. Using manual configuration.`;
       } else {
         const unconfigured = this.detectedAgents.filter(a => !a.hasGres).length;
-        detectStatus.textContent = `Found ${this.detectedAgents.length} agent(s). ${unconfigured} need configuration.`;
+        detectStatus.innerHTML = `<span class="section-badge ${result.pass ? 'success' : 'error'}">${statusIcon}</span> Found ${this.detectedAgents.length} agent(s). ${unconfigured} need configuration.`;
       }
 
     } catch (err) {
       agentList.innerHTML = `<div class="note text-error">Error: ${err.message}</div>`;
-      detectStatus.textContent = "Detection failed. Please try again.";
+      detectStatus.innerHTML = `<span class="section-badge error">FAILED</span> Detection failed. Please try again.`;
     }
   },
 
@@ -158,8 +224,10 @@ const wizard = {
       item.classList.toggle("selected", checkbox.checked);
     });
 
+    // Gate test: can only advance if at least one agent selected AND WZ-002 passed
     const btnNext = document.getElementById("btnDetectNext");
-    btnNext.disabled = this.selectedAgents.length === 0;
+    const wz002Result = this.sectionResults.get("WZ-002");
+    btnNext.disabled = this.selectedAgents.length === 0 || !wz002Result?.pass;
   },
 
   syncAll() {
@@ -170,25 +238,33 @@ const wizard = {
     this.selectAgents();
   },
 
-  selectAgents() {
+  async selectAgents() {
     if (this.selectedAgents.length === 0) return;
+
+    // Store selected agent in context
+    await window.gres.wizard.setContext("selectedAgent", this.selectedAgents[0]);
+
     this.showStep("install");
     this.runInstallation();
   },
 
   // ========================================================================
-  // Step 3: Installation (Binary is bundled - no download needed)
+  // Step 3: Installation (WZ-003, WZ-004, WZ-005)
   // ========================================================================
   async runInstallation() {
-    const steps = ["checksum", "path", "config"];
     const progressFill = document.getElementById("installProgress");
     const progressStatus = document.getElementById("installStatus");
     const progressPercent = document.getElementById("installPercent");
+    const sectionBadge = document.getElementById("installSectionBadge");
 
-    const setProgress = (percent, status) => {
+    const setProgress = (percent, status, sectionId) => {
       progressFill.style.width = percent + "%";
       progressPercent.textContent = percent + "%";
-      progressStatus.textContent = status;
+      if (sectionId) {
+        progressStatus.innerHTML = `<span class="section-badge">${sectionId}</span> ${status}`;
+      } else {
+        progressStatus.textContent = status;
+      }
     };
 
     const setStepStatus = (stepId, status, detail) => {
@@ -203,8 +279,8 @@ const wizard = {
       else if (status === "error") statusEl.innerHTML = "&#10007;";
     };
 
-    steps.forEach((s) => setStepStatus(s, "", "Waiting..."));
-    setProgress(0, "Starting...");
+    ["checksum", "path", "config"].forEach((s) => setStepStatus(s, "", "Waiting..."));
+    setProgress(0, "Starting...", null);
 
     try {
       // Get install paths
@@ -212,48 +288,56 @@ const wizard = {
       this.data.installDir = paths.installDir;
       this.data.binaryPath = paths.binaryPath;
 
-      // Step 1: Install bundled binary
+      // WZ-004: Install Binary
+      if (sectionBadge) sectionBadge.textContent = "WZ-004";
       setStepStatus("checksum", "active", "Installing binary...");
-      setProgress(5, "Installing gres-b2b...");
+      setProgress(5, "Installing gres-b2b...", "WZ-004");
 
-      window.gres.install.onProgress((percent) => {
-        setProgress(5 + Math.floor(percent * 0.35), `Installing... ${percent}%`);
+      window.gres.wizard.onProgress((percent) => {
+        setProgress(5 + Math.floor(percent * 0.35), `Installing... ${percent}%`, "WZ-004");
       });
 
-      const installResult = await window.gres.install.downloadBinary();
-      window.gres.install.offProgress();
+      const wz004Result = await window.gres.wizard.runSectionById("WZ-004");
+      window.gres.wizard.offProgress();
+      this.sectionResults.set("WZ-004", wz004Result);
 
-      if (!installResult.success) {
-        throw new Error(installResult.error || "Installation failed");
+      if (!wz004Result.pass) {
+        throw new Error(wz004Result.message || "Installation failed");
       }
 
-      this.data.version = installResult.version;
-      setStepStatus("checksum", "success", `v${installResult.version}`);
+      const ctx = await window.gres.wizard.getContext();
+      this.data.version = ctx.downloadResult?.version || "unknown";
+      setStepStatus("checksum", "success", `v${this.data.version}`);
 
-      // Step 2: Configure PATH
-      setStepStatus("path", "active", "Updating PATH...");
-      setProgress(50, "Configuring system PATH...");
+      // WZ-005: Binary Proof
+      if (sectionBadge) sectionBadge.textContent = "WZ-005";
+      setStepStatus("path", "active", "Verifying binary...");
+      setProgress(50, "Running binary verification...", "WZ-005");
 
-      const pathResult = await window.gres.install.applyPath();
-      if (!pathResult.success) {
-        throw new Error(pathResult.error || "PATH configuration failed");
+      const wz005Result = await window.gres.wizard.runSectionById("WZ-005");
+      this.sectionResults.set("WZ-005", wz005Result);
+
+      if (!wz005Result.pass) {
+        throw new Error(wz005Result.message || "Binary verification failed");
       }
-      setStepStatus("path", "success", pathResult.alreadyInPath ? "Already set" : "Updated");
+      setStepStatus("path", "success", "Verified");
 
-      // Step 3: Write agent configs (safe merge with backup)
+      // WZ-003: Config Merge
+      if (sectionBadge) sectionBadge.textContent = "WZ-003";
       setStepStatus("config", "active", "Configuring agents...");
-      setProgress(70, "Writing agent configurations...");
+      setProgress(70, "Writing agent configurations...", "WZ-003");
 
       let successCount = 0;
       let errorCount = 0;
 
       for (const agent of this.selectedAgents) {
-        const configResult = await window.gres.config.write(agent);
+        await window.gres.wizard.setContext("selectedAgent", agent);
+        const configResult = await window.gres.wizard.runSectionById("WZ-003");
 
-        if (configResult.success) {
+        if (configResult.pass) {
           successCount++;
-        } else if (configResult.needsRepair) {
-          const repaired = await this.handleConfigError(agent, configResult);
+        } else if (configResult.code === "ERR_PARSE_ERROR") {
+          const repaired = await this.handleConfigError(agent, configResult.message);
           if (repaired) successCount++;
           else errorCount++;
         } else {
@@ -261,28 +345,30 @@ const wizard = {
         }
       }
 
+      this.sectionResults.set("WZ-003", { pass: successCount > 0, successCount, errorCount });
+
       if (errorCount > 0 && successCount === 0) {
         throw new Error(`Failed to configure all ${errorCount} agent(s)`);
       }
 
       setStepStatus("config", "success", `${successCount} agent(s)`);
-      setProgress(100, "Installation complete!");
+      setProgress(100, "Installation complete!", null);
 
       await this.sleep(500);
       await this.checkForRunningAgents();
 
     } catch (err) {
-      const failedStep = steps.find((s) => {
+      const failedStep = ["checksum", "path", "config"].find((s) => {
         const el = document.getElementById(`step-${s}`);
-        return el.classList.contains("active");
+        return el?.classList.contains("active");
       });
       if (failedStep) setStepStatus(failedStep, "error", err.message);
       this.showError("Installation Failed", err.message);
     }
   },
 
-  async handleConfigError(agent, result) {
-    const choice = await this.showRepairDialog(agent, result.error);
+  async handleConfigError(agent, error) {
+    const choice = await this.showRepairDialog(agent, error);
     if (choice === "repair") {
       const repairResult = await window.gres.config.repair(agent);
       return repairResult.success;
@@ -299,7 +385,7 @@ const wizard = {
       overlay.className = "dialog-overlay";
       overlay.innerHTML = `
         <div class="repair-dialog">
-          <h3>Config Parse Error</h3>
+          <h3>WZ-003 Config Parse Error</h3>
           <p><strong>${agent.name}</strong> config could not be parsed:</p>
           <div class="error-box" style="font-size: 0.75rem; max-height: 60px; overflow: auto;">${error}</div>
           <p style="margin-top: 12px;">What would you like to do?</p>
@@ -328,19 +414,31 @@ const wizard = {
   },
 
   // ========================================================================
-  // Step 4: Zombie Guard
+  // Step 4: Zombie Guard (WZ-007)
   // ========================================================================
   async checkForRunningAgents() {
-    const result = await window.gres.zombie.checkAll(this.selectedAgents);
+    // Run WZ-007 through state machine
+    const wz007Result = await window.gres.wizard.runSectionById("WZ-007");
+    this.sectionResults.set("WZ-007", wz007Result);
 
-    if (result.hasRunning) {
-      const running = result.runningAgents[0];
+    const ctx = await window.gres.wizard.getContext();
+    const restartCheck = ctx.restartCheckResult;
+
+    if (restartCheck?.running) {
+      const running = {
+        agentName: this.selectedAgents[0]?.name,
+        processes: restartCheck.pids,
+        restartMessage: this.selectedAgents[0]?.restartMessage,
+        isCodex: this.selectedAgents[0]?.name?.toLowerCase().includes("codex"),
+      };
       this.currentZombieAgent = running;
 
       document.getElementById("zombieAgent").textContent = running.agentName;
       document.getElementById("zombieProcess").textContent = running.processes?.join(", ") || running.agentName;
 
-      // Agent-specific restart message (Codex = terminal restart)
+      const sectionBadge = document.getElementById("zombieSectionBadge");
+      if (sectionBadge) sectionBadge.textContent = "WZ-007";
+
       const restartEl = document.getElementById("zombieRestart");
       if (restartEl) {
         restartEl.textContent = running.restartMessage || "Please close the application.";
@@ -351,11 +449,11 @@ const wizard = {
       const skipBtn = document.getElementById("btnSkipZombie");
 
       if (running.isCodex) {
-        statusEl.textContent = "Restart your terminal/CLI session to apply changes.";
+        statusEl.innerHTML = `<span class="section-badge">WZ-007</span> Restart your terminal/CLI session to apply changes.`;
         if (forceBtn) forceBtn.style.display = "none";
         if (skipBtn) skipBtn.style.display = "inline-block";
       } else {
-        statusEl.textContent = "Waiting for process to exit...";
+        statusEl.innerHTML = `<span class="section-badge">WZ-007</span> Waiting for process to exit...`;
         if (forceBtn) forceBtn.style.display = "inline-block";
         if (skipBtn) skipBtn.style.display = "none";
       }
@@ -375,7 +473,7 @@ const wizard = {
     const statusEl = document.getElementById("zombieStatus");
 
     window.gres.zombie.onStatus((status) => {
-      statusEl.textContent = status.message || "Checking...";
+      statusEl.innerHTML = `<span class="section-badge">WZ-007</span> ${status.message || "Checking..."}`;
     });
 
     try {
@@ -388,52 +486,58 @@ const wizard = {
       window.gres.zombie.offStatus();
 
       if (result.exited) {
-        statusEl.textContent = "Process exited. Proceeding...";
+        statusEl.innerHTML = `<span class="section-badge success">WZ-007 PASSED</span> Process exited. Proceeding...`;
+        this.sectionResults.set("WZ-007", { pass: true, code: "OK" });
         await this.sleep(1000);
         this.showStep("verify");
         this.runVerification();
       } else if (result.timeout) {
-        statusEl.textContent = "Timeout. Use Force Close or close manually.";
+        statusEl.innerHTML = `<span class="section-badge error">WZ-007</span> Timeout. Use Force Close or close manually.`;
       }
     } catch (err) {
       window.gres.zombie.offStatus();
-      statusEl.textContent = `Error: ${err.message}`;
+      statusEl.innerHTML = `<span class="section-badge error">WZ-007 ERROR</span> ${err.message}`;
     }
   },
 
   skipZombie() {
+    this.sectionResults.set("WZ-007", { pass: true, code: "OK_SKIPPED" });
     this.showStep("verify");
     this.runVerification();
   },
 
   async forceKill() {
     const statusEl = document.getElementById("zombieStatus");
-    statusEl.textContent = "Force closing...";
+    statusEl.innerHTML = `<span class="section-badge">WZ-007</span> Force closing...`;
 
     try {
       const result = await window.gres.zombie.forceKill(this.currentZombieAgent.agentName);
 
       if (result.success) {
-        statusEl.textContent = "Process closed. Proceeding...";
+        statusEl.innerHTML = `<span class="section-badge success">WZ-007 PASSED</span> Process closed. Proceeding...`;
+        this.sectionResults.set("WZ-007", { pass: true, code: "OK" });
         await this.sleep(1000);
         this.showStep("verify");
         this.runVerification();
       } else {
-        statusEl.textContent = result.error || "Failed to close process";
+        statusEl.innerHTML = `<span class="section-badge error">WZ-007</span> ${result.error || "Failed to close process"}`;
       }
     } catch (err) {
-      statusEl.textContent = `Error: ${err.message}`;
+      statusEl.innerHTML = `<span class="section-badge error">WZ-007 ERROR</span> ${err.message}`;
     }
   },
 
   // ========================================================================
-  // Step 5: Verification (MCP Handshake)
+  // Step 5: Verification (WZ-006 MCP Selftest)
   // ========================================================================
   async runVerification() {
+    const sectionBadge = document.getElementById("verifySectionBadge");
+    if (sectionBadge) sectionBadge.textContent = "WZ-006";
+
     const tests = [
-      { id: "binary", fn: () => window.gres.verify.binaryVersion() },
-      { id: "path", fn: () => window.gres.verify.pathWhere() },
-      { id: "mcp", fn: () => window.gres.mcp.selftest() },
+      { id: "binary", sectionId: "WZ-005", name: "Binary Version", fn: () => window.gres.verify.binaryVersion() },
+      { id: "path", sectionId: null, name: "PATH Check", fn: () => window.gres.verify.pathWhere() },
+      { id: "mcp", sectionId: "WZ-006", name: "MCP Selftest", fn: () => window.gres.wizard.runSectionById("WZ-006") },
     ];
 
     let allPassed = true;
@@ -445,25 +549,44 @@ const wizard = {
 
       stepEl.className = "progress-step active";
       statusEl.innerHTML = "";
-      detailEl.textContent = "Testing...";
+      detailEl.innerHTML = test.sectionId
+        ? `<span class="section-badge">${test.sectionId}</span> Testing...`
+        : "Testing...";
 
       try {
         const result = await test.fn();
 
-        if (result.success) {
+        // Handle both old API and new section results
+        const passed = result.success || result.pass;
+
+        if (passed) {
           stepEl.className = "progress-step success";
           statusEl.innerHTML = "&#10003;";
-          detailEl.textContent = result.message || result.version || "Passed";
+          detailEl.innerHTML = test.sectionId
+            ? `<span class="section-badge success">${test.sectionId} PASSED</span> ${result.message || result.version || "Passed"}`
+            : (result.message || result.version || "Passed");
+
+          if (test.sectionId) {
+            this.sectionResults.set(test.sectionId, { pass: true, ...result });
+          }
         } else {
           stepEl.className = "progress-step error";
           statusEl.innerHTML = "&#10007;";
-          detailEl.textContent = result.error || "Failed";
+          detailEl.innerHTML = test.sectionId
+            ? `<span class="section-badge error">${test.sectionId} FAILED</span> ${result.error || result.message || "Failed"}`
+            : (result.error || result.message || "Failed");
           allPassed = false;
+
+          if (test.sectionId) {
+            this.sectionResults.set(test.sectionId, { pass: false, ...result });
+          }
         }
       } catch (err) {
         stepEl.className = "progress-step error";
         statusEl.innerHTML = "&#10007;";
-        detailEl.textContent = err.message;
+        detailEl.innerHTML = test.sectionId
+          ? `<span class="section-badge error">${test.sectionId} ERROR</span> ${err.message}`
+          : err.message;
         allPassed = false;
       }
 
@@ -473,12 +596,20 @@ const wizard = {
     const resultEl = document.getElementById("verifyResult");
 
     if (allPassed) {
-      resultEl.innerHTML = `<div class="note text-success" style="margin-top: 20px;">All tests passed!</div>`;
+      resultEl.innerHTML = `
+        <div class="note text-success" style="margin-top: 20px;">
+          <span class="section-badge success">ALL GATES PASSED</span>
+          All verification tests passed!
+        </div>
+      `;
       await this.sleep(1500);
       this.showSuccess();
     } else {
       resultEl.innerHTML = `
-        <div class="note text-error" style="margin-top: 20px;">Some tests failed.</div>
+        <div class="note text-error" style="margin-top: 20px;">
+          <span class="section-badge error">GATE FAILED</span>
+          Some tests failed. Please resolve before proceeding.
+        </div>
         <div class="step-actions">
           <button class="btn btn-secondary" onclick="wizard.retry()">Retry</button>
           <button class="btn btn-primary" onclick="wizard.openDocs()">Get Help</button>
@@ -497,6 +628,19 @@ const wizard = {
     document.getElementById("successConfig").textContent =
       this.selectedAgents.length + " agent(s)";
 
+    // Add success message about full path
+    const successNote = document.getElementById("successNote");
+    if (successNote) {
+      successNote.innerHTML = `
+        <div class="note text-success" style="margin-top: 12px;">
+          Configured using full path. PATH not required.
+        </div>
+        <div class="note" style="margin-top: 8px;">
+          Restart your AI agent to load MCP config.
+        </div>
+      `;
+    }
+
     this.showStep("success");
 
     // Create desktop shortcut
@@ -508,6 +652,10 @@ const wizard = {
     } catch (err) {
       console.warn("Shortcut creation failed:", err);
     }
+
+    // Log wizard completion
+    const summary = await window.gres.wizard.summary();
+    console.log("Wizard Summary:", summary);
   },
 
   // ========================================================================
@@ -515,10 +663,8 @@ const wizard = {
   // ========================================================================
   async launchDashboard() {
     try {
-      // Open the onboarding dashboard URL
       await window.gres.install.openDashboard();
     } catch (err) {
-      // Fallback to opening GitHub docs
       window.gres.util.openUrl("https://ajranjith.github.io/b2b-governance-action/onboarding/?status=ready");
     }
   },
@@ -545,6 +691,11 @@ const wizard = {
 
   openDocs() {
     window.gres.install.openDocs();
+  },
+
+  async viewLogs() {
+    const logInfo = await window.gres.wizard.logPath();
+    window.gres.util.openPath(logInfo.path);
   },
 
   sleep(ms) {

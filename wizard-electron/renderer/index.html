@@ -15,8 +15,24 @@
     </header>
 
     <div class="wizard-content">
+      <!-- Preflight Step (WZ-001) -->
+      <section id="step-preflight" class="step active">
+        <div class="step-icon">
+          <div class="spinner"></div>
+        </div>
+        <h2><span class="section-badge">WZ-001</span> Preflight</h2>
+        <p>Checking system requirements...</p>
+        <div id="preflightStatus" class="preflight-status">
+          <div class="note">Verifying permissions and directories...</div>
+        </div>
+        <div id="preflightDetail" class="preflight-detail"></div>
+        <div class="step-actions">
+          <button class="btn btn-primary" id="btnPreflightRetry" onclick="wizard.retryPreflight()" style="display: none;">Retry</button>
+        </div>
+      </section>
+
       <!-- Step 1: Welcome -->
-      <section id="step-welcome" class="step active">
+      <section id="step-welcome" class="step">
         <div class="step-icon">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
@@ -36,9 +52,9 @@
         </div>
       </section>
 
-      <!-- Step 2: Detect Agents -->
+      <!-- Step 2: Detect Agents (WZ-002) -->
       <section id="step-detect" class="step">
-        <h2>Detecting AI Agents</h2>
+        <h2><span class="section-badge" id="detectSectionBadge">WZ-002</span> Detecting AI Agents</h2>
         <p>Scanning for config files...</p>
         <div id="agentList" class="agent-list"></div>
         <div id="detectStatus" class="note"></div>
@@ -49,9 +65,9 @@
         </div>
       </section>
 
-      <!-- Step 3: Install -->
+      <!-- Step 3: Install (WZ-003, WZ-004, WZ-005) -->
       <section id="step-install" class="step">
-        <h2>Configuring Environment</h2>
+        <h2><span class="section-badge" id="installSectionBadge">WZ-004</span> Configuring Environment</h2>
         <p>Setting up the GRES B2B bridge...</p>
         <div class="progress-steps" id="installSteps">
           <div class="progress-step" id="step-checksum">
@@ -85,9 +101,9 @@
         </div>
       </section>
 
-      <!-- Step 4: Zombie Guard -->
+      <!-- Step 4: Zombie Guard (WZ-007) -->
       <section id="step-zombie" class="step">
-        <h2>Restart Required</h2>
+        <h2><span class="section-badge" id="zombieSectionBadge">WZ-007</span> Restart Required</h2>
         <p>Please close your AI agent to apply changes</p>
         <div class="zombie-alert">
           <h3 id="zombieAgent">Waiting for Agent</h3>
@@ -102,9 +118,9 @@
         </div>
       </section>
 
-      <!-- Step 5: Verify -->
+      <!-- Step 5: Verify (WZ-006) -->
       <section id="step-verify" class="step">
-        <h2>Verification</h2>
+        <h2><span class="section-badge" id="verifySectionBadge">WZ-006</span> Verification</h2>
         <p>Running self-tests...</p>
         <div class="progress-steps" id="verifySteps">
           <div class="progress-step" id="verify-binary">
@@ -159,6 +175,7 @@
             <div class="status-value" id="successConfig">-</div>
           </div>
         </div>
+        <div id="successNote"></div>
         <p class="note">A desktop shortcut has been created</p>
         <div class="step-actions">
           <button class="btn btn-secondary" onclick="wizard.openDocs()">Documentation</button>
