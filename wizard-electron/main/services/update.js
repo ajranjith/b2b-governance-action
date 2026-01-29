@@ -16,7 +16,6 @@ const path = require("path");
 const https = require("https");
 const { execSync, spawn } = require("child_process");
 const os = require("os");
-const Store = require("electron-store");
 const { INSTALL_DIR, BINARY_PATH } = require("./config");
 
 const GITHUB_OWNER = "ajranjith";
@@ -26,15 +25,33 @@ const BINARY_NAME = "gres-b2b.exe";
 // Rate limiting constants
 const RATE_LIMIT_INTERVAL = 24 * 60 * 60 * 1000; // 24 hours
 
-// Persistent storage for rate limiting
-const store = new Store({
-  name: "gres-b2b-update",
-  defaults: {
-    lastUpdateCheck: 0,
-    rateLimitReset: 0,
-    cachedVersion: null,
-  },
-});
+// Store instance (loaded asynchronously)
+let store = null;
+let storePromise = null;
+
+/**
+ * Initialize electron-store with dynamic import (ESM compatibility)
+ */
+async function getStore() {
+  if (store) return store;
+
+  if (!storePromise) {
+    storePromise = (async () => {
+      const { default: Store } = await import("electron-store");
+      store = new Store({
+        name: "gres-b2b-update",
+        defaults: {
+          lastUpdateCheck: 0,
+          rateLimitReset: 0,
+          cachedVersion: null,
+        },
+      });
+      return store;
+    })();
+  }
+
+  return storePromise;
+}
 
 // Architecture patterns for matching release assets
 const ARCH_PATTERNS = {
@@ -58,10 +75,11 @@ function getWindowsArch() {
  * Check if we should call GitHub API (rate limiting)
  * Returns { allowed, reason, nextCheckTime }
  */
-function shouldCheckForUpdate() {
+async function shouldCheckForUpdate() {
+  const s = await getStore();
   const now = Date.now();
-  const lastCheck = store.get("lastUpdateCheck", 0);
-  const rateLimitReset = store.get("rateLimitReset", 0);
+  const lastCheck = s.get("lastUpdateCheck", 0);
+  const rateLimitReset = s.get("rateLimitReset", 0);
 
   // Check if we're blocked by GitHub rate limit
   if (rateLimitReset > now) {
@@ -93,32 +111,35 @@ function shouldCheckForUpdate() {
 /**
  * Record successful API check
  */
-function recordApiCheck() {
-  store.set("lastUpdateCheck", Date.now());
+async function recordApiCheck() {
+  const s = await getStore();
+  s.set("lastUpdateCheck", Date.now());
 }
 
 /**
  * Handle GitHub 403 rate limit response
  */
-function handleRateLimit(headers) {
+async function handleRateLimit(headers) {
+  const s = await getStore();
   const resetTime = headers["x-ratelimit-reset"];
   if (resetTime) {
     const resetMs = parseInt(resetTime, 10) * 1000;
-    store.set("rateLimitReset", resetMs);
+    s.set("rateLimitReset", resetMs);
     return new Date(resetMs);
   }
   // Default: wait 1 hour
   const fallbackReset = Date.now() + 60 * 60 * 1000;
-  store.set("rateLimitReset", fallbackReset);
+  s.set("rateLimitReset", fallbackReset);
   return new Date(fallbackReset);
 }
 
 /**
  * Clear rate limit (for manual override)
  */
-function clearRateLimit() {
-  store.set("rateLimitReset", 0);
-  store.set("lastUpdateCheck", 0);
+async function clearRateLimit() {
+  const s = await getStore();
+  s.set("rateLimitReset", 0);
+  s.set("lastUpdateCheck", 0);
 }
 
 /**
@@ -184,10 +205,10 @@ async function getLatestRelease() {
       .on("error", reject);
   });
 
-  function handleResponse(res, resolve, reject) {
+  async function handleResponse(res, resolve, reject) {
     // Handle rate limit (403 Forbidden)
     if (res.statusCode === 403) {
-      const resetTime = handleRateLimit(res.headers);
+      const resetTime = await handleRateLimit(res.headers);
       reject(new Error(`GitHub API rate limit exceeded. Retry after ${resetTime.toLocaleTimeString()}`));
       return;
     }
@@ -246,12 +267,14 @@ async function checkForUpdate(opts = {}) {
   const { forceCheck = false } = opts;
 
   try {
+    const s = await getStore();
+
     // Check rate limiting unless forced
     if (!forceCheck) {
-      const rateCheck = shouldCheckForUpdate();
+      const rateCheck = await shouldCheckForUpdate();
       if (!rateCheck.allowed) {
         // Return cached version info if available
-        const cached = store.get("cachedVersion");
+        const cached = s.get("cachedVersion");
         return {
           success: true,
           skipped: true,
@@ -263,7 +286,7 @@ async function checkForUpdate(opts = {}) {
       }
     } else {
       // Manual override - clear any rate limit blocks
-      clearRateLimit();
+      await clearRateLimit();
     }
 
     // Get current version
@@ -277,7 +300,7 @@ async function checkForUpdate(opts = {}) {
     const latestVersion = release.tag_name.replace(/^v/, "");
 
     // Record successful API check
-    recordApiCheck();
+    await recordApiCheck();
 
     // Compare versions
     const updateAvailable = latestVersion !== current.version;
@@ -297,7 +320,7 @@ async function checkForUpdate(opts = {}) {
       checkedAt: Date.now(),
     };
 
-    store.set("cachedVersion", result);
+    s.set("cachedVersion", result);
 
     return result;
   } catch (err) {
@@ -315,14 +338,15 @@ async function forceCheckForUpdate() {
 /**
  * Get rate limit status
  */
-function getRateLimitStatus() {
-  const rateCheck = shouldCheckForUpdate();
+async function getRateLimitStatus() {
+  const s = await getStore();
+  const rateCheck = await shouldCheckForUpdate();
   return {
     allowed: rateCheck.allowed,
     reason: rateCheck.reason || "Ready to check",
     nextCheckTime: rateCheck.nextCheckTime,
     rateLimited: rateCheck.rateLimited || false,
-    lastCheck: store.get("lastUpdateCheck", 0),
+    lastCheck: s.get("lastUpdateCheck", 0),
   };
 }
 
