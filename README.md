@@ -14,20 +14,22 @@ A governance framework + lightweight MCP tool for **B2B eCommerce portals** (dea
 
 Choose your setup method:
 
-### Option 1 — Download & Install Wizard (Recommended)
+### Option 1 — Download CLI Package (Recommended)
 
-**For Windows users.** Single download with everything bundled.
+**For Windows users.** Single ZIP with everything included.
 
-[**Download gres-b2b-setup.exe →**](https://github.com/ajranjith/b2b-governance-action/releases/latest/download/gres-b2b-setup.exe)
+[**Download gres-b2b.zip →**](https://github.com/ajranjith/b2b-governance-action/releases/latest/download/gres-b2b-v1.0.0-windows-amd64.zip)
 
-**One file, complete setup.** The wizard bundles the `gres-b2b` CLI inside — no separate downloads needed.
+**ZIP contents:**
+- `gres-b2b.exe` — CLI binary
+- `gres-b2b.config.json` — Default configuration
+- `README.txt` — Quick start guide
+- `checksums.txt` — SHA256 verification
 
-The wizard will:
-- Auto-detect your AI agents (Claude Desktop, Cursor, VS Code/Windsurf, Codex CLI)
-- Install the bundled `gres-b2b` CLI to `%LOCALAPPDATA%\Programs\gres-b2b\`
-- Add it to your PATH automatically
-- Configure MCP connection for selected agents
-- Verify MCP handshake
+**Installation:**
+1. Extract to `%LOCALAPPDATA%\Programs\gres-b2b\`
+2. Add to PATH (optional)
+3. Configure your AI agent's MCP settings
 
 **Supported AI Agents:**
 - Claude Desktop

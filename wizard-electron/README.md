@@ -6,7 +6,9 @@ Electron-based Windows installer with debuggable UI and reliable state validatio
 
 ## Download
 
-[**Download gres-b2b-setup.exe →**](https://github.com/ajranjith/b2b-governance-action/releases/latest/download/gres-b2b-setup.exe)
+**Recommended:** [**Download gres-b2b.zip →**](https://github.com/ajranjith/b2b-governance-action/releases/latest/download/gres-b2b-v1.0.0-windows-amd64.zip)
+
+**Alternative (Setup Wizard):** [**Download gres-b2b-setup.exe →**](https://github.com/ajranjith/b2b-governance-action/releases/latest/download/gres-b2b-setup.exe)
 
 ---
 
