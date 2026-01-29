@@ -1,6 +1,7 @@
 # GRES B2B eCommerce Governance Framework + MCP Engine
 
 [![GitHub Marketplace](https://img.shields.io/badge/Marketplace-GRES%20B2B%20Governance-blue?logo=github)](https://github.com/marketplace/actions/gres-b2b-governance)
+[![GitHub Release](https://img.shields.io/github/v/release/ajranjith/b2b-governance-action?logo=github&label=Release)](https://github.com/ajranjith/b2b-governance-action/releases/latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 A governance framework + lightweight MCP tool for **B2B eCommerce portals** (dealer accounts, pricing, orders, backorders, fulfilment, ERP/WMS sync). It helps teams using AI-assisted development (Cursor / Claude / Windsurf / Codex) ship faster **without breaking architecture, permissions, or auditability** by generating a **RED / AMBER / GREEN readiness dashboard** and structured "what to fix next" guidance.
