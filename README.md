@@ -14,46 +14,37 @@ A governance framework + lightweight MCP tool for **B2B eCommerce portals** (dea
 
 Choose your setup method:
 
-### Option 1 — Download CLI Package (Recommended)
+### Option 1 - Download CLI Package (Recommended)
 
-**For Windows users.** Single ZIP with everything included.
+Single ZIP with all supported binaries and documentation.
 
-[**Download gres-b2b.zip →**](https://github.com/ajranjith/b2b-governance-action/releases/download/v4.0.0/gres-b2b.zip)
+[**Download gres-b2b.zip ->**](https://github.com/ajranjith/b2b-governance-action/releases/download/v4.0.0/gres-b2b.zip)
 
 **ZIP contents:**
-- `gres-b2b.exe` — CLI binary
-- `gres-b2b.config.json` — Default configuration
-- `README.txt` — Quick start guide
-- `checksums.txt` — SHA256 verification
+- `bin/windows-amd64/gres-b2b.exe`
+- `bin/linux-amd64/gres-b2b`
+- `bin/darwin-arm64/gres-b2b`
+- `docs/` (INSTALL/AGENT/ARCHITECTURE + CLI refs)
+- `RELEASE_NOTES.md`
+- `checksums.txt`
+- `sbom.spdx.json`
+**Installation (Windows example):**
+1. Extract to `%LOCALAPPDATA%\\Programs\\gres-b2b\\`
+2. (Optional) Add `%LOCALAPPDATA%\\Programs\\gres-b2b\\bin\\windows-amd64` to PATH
+3. Run `gres-b2b.exe doctor` and configure MCP using the snippets in [docs/INSTALL.md](docs/INSTALL.md)
 
-**Installation:**
-1. Extract to `%LOCALAPPDATA%\Programs\gres-b2b\`
-2. Add to PATH (optional)
-3. Configure your AI agent's MCP settings
+### Option 2 - CLI Setup Guide (Manual)
 
-**Supported AI Agents:**
-- Claude Desktop
-- Cursor
-- VS Code (Windsurf)
-- Codex CLI
-- Any MCP-compatible agent (manual config)
+**For macOS/Linux, or if you prefer manual steps.**
 
-### Option 2 — CLI Setup Guide
-
-**For macOS/Linux, or if you prefer manual setup.**
-
-[**View CLI Setup Guide →**](https://ajranjith.github.io/b2b-governance-action/cli/)
-
-Step-by-step commands for:
-- Installing via shell script
-- Configuring MCP for your AI agent
-- Verifying installation
+- Full install and MCP setup guide: [docs/INSTALL.md](docs/INSTALL.md)
+- CLI reference: [docs/CLI-COMMANDS.md](docs/CLI-COMMANDS.md)
 
 ---
 
 ## Why This Exists
 
-B2B eCommerce changes are high-impact: a small mistake in **pricing**, **permissions**, or **order lifecycle** can cause major financial and operational damage. AI speeds delivery, but can introduce risky shortcuts (UI→DB coupling, missing policy checks, inconsistent patterns, weak audit trails).
+B2B eCommerce changes are high-impact: a small mistake in **pricing**, **permissions**, or **order lifecycle** can cause major financial and operational damage. AI speeds delivery, but can introduce risky shortcuts (UI->DB coupling, missing policy checks, inconsistent patterns, weak audit trails).
 
 **This framework exists to keep delivery fast and enterprise-safe** using repeatable guardrails and a simple readiness signal.
 
@@ -77,7 +68,7 @@ B2B eCommerce changes are high-impact: a small mistake in **pricing**, **permiss
 |---------|-------------|
 | **AI guardrails built-in** | Agent receives structured instructions to build "the right way" |
 | **Consistency across teams** | Fewer style wars, faster onboarding, fewer architectural forks |
-| **Repeatable improvement loop** | Scan → fix → scan until GREEN |
+| **Repeatable improvement loop** | Scan -> fix -> scan until GREEN |
 
 ---
 
@@ -90,7 +81,7 @@ B2B eCommerce changes are high-impact: a small mistake in **pricing**, **permiss
 | **ID registries** | Centralized catalogs (REF/API/SVC/DB/POL/ENT) for validation and traceability |
 | **Identity Envelope** | Consistent identity across layers for audit and diagnostics |
 | **Admin vs Dealer separation** | Reduces privilege leakage and keeps dealer-safe boundaries enforced |
-| **Policy engine + wrappers** | Central permission checks—no hidden bypass routes |
+| **Policy engine + wrappers** | Central permission checks - no hidden bypass routes |
 | **Repository-only DB access** | Prevents direct DB use in UI/routes; keeps data access controlled |
 | **DB wrapper + DB-IDs** | Every query is traceable and governed |
 | **Dealer-safe DTO boundary** | Prevents leaking internal fields into dealer responses |
@@ -106,11 +97,11 @@ B2B eCommerce changes are high-impact: a small mistake in **pricing**, **permiss
 
 ## What the MCP Tool Generates
 
-- `.b2b/report.html` — HUD dashboard
-- `.b2b/report.json` — Structured output
-- `.b2b/certificate.json` — Verification certificate
-- `.b2b/results.sarif` — SARIF for GitHub Security
-- `.b2b/junit.xml` — JUnit for CI reporters
+- `.b2b/report.html` - HUD dashboard
+- `.b2b/report.json` - Structured output
+- `.b2b/certificate.json` - Verification certificate
+- `.b2b/results.sarif` - SARIF for GitHub Security
+- `.b2b/junit.xml` - JUnit for CI reporters
 
 - `.b2b/api-routes.json` - API route inventory
 - `.b2b/hints.json` - Live hints list
@@ -149,7 +140,7 @@ That's it! The action runs in `verify` mode by default.
 
 ### Verify (Default)
 
-One-time governance scan. Exits with code 1 if thresholds are exceeded.
+Runs scan then verify gating. Exits with code 1 if thresholds are exceeded.
 
 ```yaml
 - uses: ajranjith/b2b-governance-action@v4
@@ -173,6 +164,12 @@ Continuous file watching (primarily for local development).
 
 Compare outputs between legacy and new implementations for parity testing.
 
+```yaml
+- uses: ajranjith/b2b-governance-action@v4
+  with:
+    mode: shadow
+    vectors: .b2b/vectors.yml
+    token: ${{ secrets.GITHUB_TOKEN }}
 ```yaml
 - uses: ajranjith/b2b-governance-action@v4
   with:
@@ -221,7 +218,7 @@ Control how violations affect your pipeline.
 | Input | Description | Default |
 |-------|-------------|---------|
 | `mode` | Operation mode: `verify` \| `watch` \| `shadow` | `verify` |
-| `config` | Path to custom config file | _(none)_ |
+| `config` | Path to custom JSON config file | _(none)_ |
 | `fail_on_red` | If set (true/false), writes fail_on_red in .b2b/config.yml | (empty) |
 | `allow_amber` | If set (true/false), writes allow_amber in .b2b/config.yml | (empty) |
 | `sarif` | SARIF output path | `.b2b/results.sarif` |
@@ -266,7 +263,7 @@ After execution, reports are written to `.b2b/`:
 ```yaml
 - uses: ajranjith/b2b-governance-action@v4
   with:
-    config: .b2b/policy.yml
+    config: .b2b/config.json
     token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
@@ -393,7 +390,7 @@ The action wrapper is MIT licensed. The `gres-b2b` engine license is defined in 
 
 ## Security
 
-- CLI binary bundled inside the wizard — single trusted download
+- CLI binary bundled inside the wizard - single trusted download
 - SHA256 checksum verification before binary execution
 - Windows Defender-aware installation (auto-unblocks Mark of the Web)
 - SBOMs (SPDX) published with each release
@@ -406,4 +403,16 @@ The action wrapper is MIT licensed. The `gres-b2b` engine license is defined in 
 MIT (this action wrapper)
 
 See [LICENSE](https://github.com/ajranjith/b2b-governance-action/blob/main/LICENSE) for this action wrapper. Engine license is in [B2B-Updated](https://github.com/ajranjith/B2B-Updated).
+
+
+
+
+
+
+
+
+
+
+
+
 

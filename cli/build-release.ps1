@@ -77,7 +77,7 @@ Quick Start:
      "mcpServers": {
        "gres-b2b": {
          "command": "C:\\Users\\YOUR_USER\\AppData\\Local\\Programs\\gres-b2b\\gres-b2b.exe",
-         "args": ["mcp"]
+         "args": ["mcp", "serve"]
        }
      }
    }
@@ -156,3 +156,4 @@ Write-Host ""
 Remove-Item -Recurse -Force $StagingDir
 
 Write-Host "Done!" -ForegroundColor Green
+

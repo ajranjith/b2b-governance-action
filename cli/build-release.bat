@@ -72,7 +72,7 @@ echo    {
 echo      "mcpServers": {
 echo        "gres-b2b": {
 echo          "command": "C:\\Users\\YOUR_USER\\AppData\\Local\\Programs\\gres-b2b\\gres-b2b.exe",
-echo          "args": ["mcp"]
+echo          "args": ["mcp", "serve"]
 echo        }
 echo      }
 echo    }
@@ -154,3 +154,4 @@ REM Cleanup staging
 rd /s /q %OUTPUT_DIR%\staging
 
 echo Done!
+

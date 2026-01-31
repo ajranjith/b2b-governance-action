@@ -700,7 +700,7 @@
           </div>
           <div class="terminal-body">
             <div class="terminal-line comment"># Copy and run in your terminal</div>
-            <div class="terminal-line command" id="scan-command">gres-b2b scan --live</div>
+            <div class="terminal-line command" id="scan-command">gres-b2b scan</div>
           </div>
           <div class="terminal-actions">
             <button class="terminal-btn primary" onclick="copyScanCommand()">📋 Copy Scan Command</button>
@@ -908,7 +908,7 @@
             <div class="terminal-line comment"># Verify MCP server health</div>
             <div class="terminal-line command">gres-b2b mcp selftest</div>
             <div class="terminal-line comment"># Run scan with live browser progress</div>
-            <div class="terminal-line command">gres-b2b scan --live</div>
+            <div class="terminal-line command">gres-b2b scan</div>
             <div class="terminal-line comment"># Run scan (CLI output only)</div>
             <div class="terminal-line command">gres-b2b scan</div>
             <div class="terminal-line comment"># Auto-fix loop with live progress</div>
@@ -1530,12 +1530,12 @@ EOF</div>
       const maxIterations = document.getElementById('max-iterations')?.value || '10';
 
       if (workspacePath) {
-        scanCmd.textContent = `gres-b2b scan --live --source "${workspacePath}"`;
+        scanCmd.textContent = `gres-b2b scan`;
         if (autofixCmd) {
           autofixCmd.textContent = `gres-b2b fix --live --max-iterations=${maxIterations} --source "${workspacePath}"`;
         }
       } else {
-        scanCmd.textContent = 'gres-b2b scan --live';
+        scanCmd.textContent = 'gres-b2b scan';
         if (autofixCmd) {
           autofixCmd.textContent = `gres-b2b fix --live --max-iterations=${maxIterations}`;
         }
@@ -1597,3 +1597,4 @@ EOF</div>
   </script>
 </body>
 </html>
+

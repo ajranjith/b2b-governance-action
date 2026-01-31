@@ -15,7 +15,7 @@ inputs:
 
   # === Configuration ===
   config:
-    description: "Path to custom config file (e.g. .b2b/policy.yml)"
+    description: "Path to custom JSON config file (e.g. .b2b/config.json)"
     required: false
     default: ""
 
@@ -99,3 +99,4 @@ runs:
       run: |
         set -euo pipefail
         bash "${{ github.action_path }}/scripts/install-and-run.sh"
+

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # GRES B2B Governance Action - Install and Run Script
-# Downloads release binary, verifies checksum, composes args from inputs, and runs
+# Downloads release assets, verifies checksum, and runs gres-b2b
 set -euo pipefail
 
 # ============================================================================
@@ -32,7 +32,7 @@ case "${RUNNER_ARCH}" in
   *) echo "::error::Unsupported arch: ${RUNNER_ARCH}"; exit 2 ;;
 esac
 
-ASSET="gres-b2b_${OS}_${ARCH}.zip"
+ASSET="gres-b2b.zip"
 
 # ============================================================================
 # Download release
@@ -63,7 +63,7 @@ echo "::endgroup::"
 # ============================================================================
 echo "::group::Verify SHA256 checksum"
 
-expected="$(grep " ${ASSET}\$" checksums.txt | awk '{print $1}' || true)"
+expected="$(grep " ${ASSET}$" checksums.txt | awk '{print $1}' || true)"
 if [[ -z "${expected}" ]]; then
   echo "::error::No checksum entry found for ${ASSET} in checksums.txt"
   cat checksums.txt
@@ -97,21 +97,19 @@ echo "::endgroup::"
 echo "::group::Extract binary"
 
 if command -v unzip >/dev/null 2>&1; then
-  unzip -q "${ASSET}" -d ./bin
+  unzip -q "${ASSET}" -d .
 elif command -v bsdtar >/dev/null 2>&1; then
-  mkdir -p ./bin
-  bsdtar -xf "${ASSET}" -C ./bin
+  bsdtar -xf "${ASSET}" -C .
 elif command -v tar >/dev/null 2>&1; then
-  mkdir -p ./bin
-  tar -xf "${ASSET}" -C ./bin
+  tar -xf "${ASSET}" -C .
 else
   echo "::error::No unzip/bsdtar/tar available to extract ${ASSET}"
   exit 5
 fi
 
-BIN="./bin/gres-b2b"
+BIN="./bin/${OS}-${ARCH}/gres-b2b"
 if [[ "${OS}" == "windows" ]]; then
-  BIN="./bin/gres-b2b.exe"
+  BIN="./bin/${OS}-${ARCH}/gres-b2b.exe"
 fi
 
 chmod +x "${BIN}" 2>/dev/null || true
@@ -133,30 +131,31 @@ echo "::group::Compose command"
 
 ARGS=()
 
-# Mode flag
+# Config file (JSON overrides)
+if [[ -n "${CONFIG}" ]]; then
+  ARGS+=("--config" "${CONFIG}")
+fi
+
+# Mode
 case "${MODE}" in
-  verify) ARGS+=("verify") ;;
-  watch)  ARGS+=("--watch") ;;
-  shadow) ARGS+=("--shadow") ;;
+  verify)
+    # run scan + verify for gating
+    ;;
+  watch)
+    ARGS+=("--watch" "${GITHUB_WORKSPACE:-.}")
+    ;;
+  shadow)
+    if [[ -z "${VECTORS}" ]]; then
+      echo "::error::mode=shadow requires inputs.vectors"
+      exit 7
+    fi
+    ARGS+=("--shadow" "--vectors" "${VECTORS}" "${GITHUB_WORKSPACE:-.}")
+    ;;
   *)
     echo "::error::Invalid mode: ${MODE}. Must be verify, watch, or shadow."
     exit 7
     ;;
 esac
-
-# Config file
-if [[ -n "${CONFIG}" ]]; then
-  ARGS+=("--config" "${CONFIG}")
-fi
-
-# Shadow vectors
-if [[ "${MODE}" == "shadow" ]]; then
-  if [[ -z "${VECTORS}" ]]; then
-    echo "::error::mode=shadow requires inputs.vectors"
-    exit 7
-  fi
-  ARGS+=("--vectors" "${VECTORS}")
-fi
 
 # Print resolved command (safe for logs - no secrets)
 echo "Mode:         ${MODE}"
@@ -165,8 +164,6 @@ echo "Fail on RED:  ${FAIL_ON_RED:-<default>}"
 echo "Allow AMBER:  ${ALLOW_AMBER:-<default>}"
 echo "SARIF output: ${SARIF}"
 echo "JUnit output: ${JUNIT}"
-echo ""
-echo "Resolved command: gres-b2b ${ARGS[*]}"
 
 echo "::endgroup::"
 
@@ -178,18 +175,21 @@ echo "::group::Run gres-b2b"
 # Return to workspace for file operations
 cd "${GITHUB_WORKSPACE:-$(pwd)}"
 
-# Optional strictness overrides (only when no custom config provided)
-if [[ -z "${CONFIG}" ]] && { [[ -n "${FAIL_ON_RED}" ]] || [[ -n "${ALLOW_AMBER}" ]]; }; then
+# Optional strictness overrides for verify gating
+if [[ -n "${FAIL_ON_RED}" || -n "${ALLOW_AMBER}" ]]; then
   mkdir -p .b2b
   cat > .b2b/config.yml <<EOF
 fail_on_red: ${FAIL_ON_RED:-true}
 allow_amber: ${ALLOW_AMBER:-false}
 EOF
-  ARGS+=("--config" ".b2b/config.yml")
 fi
 
-# Execute
-"${WORKDIR}/${BIN}" "${ARGS[@]}"
+if [[ "${MODE}" == "verify" ]]; then
+  "${WORKDIR}/${BIN}" ${ARGS[@]} scan
+  "${WORKDIR}/${BIN}" ${ARGS[@]} verify
+else
+  "${WORKDIR}/${BIN}" ${ARGS[@]}
+fi
 
 echo "::endgroup::"
 

@@ -667,6 +667,7 @@ func runScan() {
 	rep.Phase4Status = phase4Status(rep.Rules)
 
 	writeJSON(filepath.Join(outputDir, "report.json"), rep)
+	writeReportHTML(workspace)
 	writeJSON(filepath.Join(outputDir, "impact-graph.json"), graph)
 	writeJSON(filepath.Join(outputDir, "api-routes.json"), apiRoutes)
 	writeJSON(filepath.Join(outputDir, "doctor.json"), doctorReport)

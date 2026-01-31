@@ -1,56 +1,42 @@
 #Requires -Version 5.1
-<#
+<@
 .SYNOPSIS
     Installs gres-b2b CLI tool for Windows.
 
 .DESCRIPTION
-    Downloads the latest gres-b2b release from GitHub and installs it to a
-    user-writable folder. No admin rights required.
+    Downloads the gres-b2b release ZIP from GitHub and installs the Windows binary.
 
 .PARAMETER Version
-    Specific version to install (e.g., "1.0.0"). Defaults to "latest".
+    Specific version to install (e.g., "4.0.0"). Defaults to "latest".
 
 .PARAMETER InstallDir
-    Installation directory. Defaults to "$env:LOCALAPPDATA\gres-b2b".
+    Installation directory. Defaults to "$env:LOCALAPPDATA\Programs\gres-b2b".
 
 .EXAMPLE
     irm https://ajranjith.github.io/b2b-governance-action/install.ps1 | iex
 
 .EXAMPLE
-    .\install.ps1 -Version "1.0.0"
+    .\install.ps1 -Version "4.0.0"
 
 .NOTES
     Repository: https://github.com/ajranjith/b2b-governance-action
-#>
+@>
 
 param(
     [string]$Version = "latest",
-    [string]$InstallDir = "$env:LOCALAPPDATA\gres-b2b"
+    [string]$InstallDir = "$env:LOCALAPPDATA\Programs\gres-b2b"
 )
 
 $ErrorActionPreference = "Stop"
-$ProgressPreference = "SilentlyContinue"  # Faster downloads
+$ProgressPreference = "SilentlyContinue"
 
 $Repo = "ajranjith/b2b-governance-action"
 $BinaryName = "gres-b2b.exe"
+$ArchiveName = "gres-b2b.zip"
 
-function Write-Step {
-    param([string]$Message)
-    Write-Host "  -> " -NoNewline -ForegroundColor Cyan
-    Write-Host $Message
-}
-
-function Write-Success {
-    param([string]$Message)
-    Write-Host "  OK " -NoNewline -ForegroundColor Green
-    Write-Host $Message
-}
-
-function Write-Fail {
-    param([string]$Message)
-    Write-Host "  FAIL " -NoNewline -ForegroundColor Red
-    Write-Host $Message
-}
+function Write-Step { param([string]$Message) Write-Host "  -> " -NoNewline -ForegroundColor Cyan; Write-Host $Message }
+function Write-Success { param([string]$Message) Write-Host "  OK " -NoNewline -ForegroundColor Green; Write-Host $Message }
+function Write-Fail { param([string]$Message) Write-Host "  FAIL " -NoNewline -ForegroundColor Red; Write-Host $Message }
 
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Cyan
@@ -82,8 +68,6 @@ if ($Version -eq "latest") {
 }
 
 # Step 3: Build download URL
-# Expected archive name: gres-b2b_<version>_windows_amd64.zip
-$ArchiveName = "gres-b2b_${Version}_${OS}_${Arch}.zip"
 $DownloadUrl = "https://github.com/$Repo/releases/download/v$Version/$ArchiveName"
 Write-Step "Download URL: $DownloadUrl"
 
@@ -120,28 +104,24 @@ try {
 Write-Step "Extracting archive..."
 try {
     Expand-Archive -Path $ArchivePath -DestinationPath $TempDir -Force
-
-    # Find the binary (might be in root or subfolder)
-    $ExtractedBinary = Get-ChildItem -Path $TempDir -Filter $BinaryName -Recurse | Select-Object -First 1
-    if (-not $ExtractedBinary) {
+    $ExtractedBinary = Join-Path $TempDir "bin\windows-$Arch\$BinaryName"
+    if (-not (Test-Path $ExtractedBinary)) {
         throw "Binary $BinaryName not found in archive"
     }
 
-    # Copy to install directory
     $DestPath = Join-Path $InstallDir $BinaryName
-    Copy-Item -Path $ExtractedBinary.FullName -Destination $DestPath -Force
+    Copy-Item -Path $ExtractedBinary -Destination $DestPath -Force
     Write-Success "Installed to $DestPath"
 } catch {
     Write-Fail "Extraction failed: $_"
     exit 1
 } finally {
-    # Cleanup temp files
     if (Test-Path $TempDir) {
         Remove-Item -Path $TempDir -Recurse -Force -ErrorAction SilentlyContinue
     }
 }
 
-# Step 7: Add to PATH (User scope, no admin needed)
+# Step 7: Add to PATH (User scope)
 Write-Step "Configuring PATH..."
 $UserPath = [Environment]::GetEnvironmentVariable("Path", "User")
 if ($UserPath -notlike "*$InstallDir*") {
@@ -152,7 +132,6 @@ if ($UserPath -notlike "*$InstallDir*") {
     Write-Success "Already in PATH"
 }
 
-# Also update current session PATH
 if ($env:Path -notlike "*$InstallDir*") {
     $env:Path = "$InstallDir;$env:Path"
 }
@@ -173,7 +152,6 @@ try {
     Write-Host "  Try running: $BinaryPath --version" -ForegroundColor Yellow
 }
 
-# Done!
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Green
 Write-Host "  Installation Complete!" -ForegroundColor Green
@@ -193,8 +171,11 @@ Write-Host "  3. Check prerequisites:"
 Write-Host "     gres-b2b doctor" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "  4. Run your first scan:"
-Write-Host "     gres-b2b scan --live" -ForegroundColor Cyan
+Write-Host "     gres-b2b scan" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "  5. Start MCP server:"
+Write-Host "     gres-b2b mcp serve" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "  Documentation:" -ForegroundColor Yellow
-Write-Host "    https://ajranjith.github.io/b2b-governance-action/onboarding/"
+Write-Host "    https://github.com/$Repo/blob/main/docs/INSTALL.md"
 Write-Host ""

@@ -6,7 +6,7 @@
 #   curl -fsSL https://ajranjith.github.io/b2b-governance-action/install.sh | bash
 #
 # Or with specific version:
-#   curl -fsSL https://ajranjith.github.io/b2b-governance-action/install.sh | bash -s -- --version 1.0.0
+#   curl -fsSL https://ajranjith.github.io/b2b-governance-action/install.sh | bash -s -- --version 4.0.0
 #
 # Repository: https://github.com/ajranjith/b2b-governance-action
 #
@@ -22,23 +22,12 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 CYAN='\033[0;36m'
 YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
-step() {
-  echo -e "  ${CYAN}->${NC} $1"
-}
-
-success() {
-  echo -e "  ${GREEN}OK${NC} $1"
-}
-
-fail() {
-  echo -e "  ${RED}FAIL${NC} $1"
-}
-
-warn() {
-  echo -e "  ${YELLOW}WARN${NC} $1"
-}
+step() { echo -e "  ${CYAN}->${NC} $1"; }
+success() { echo -e "  ${GREEN}OK${NC} $1"; }
+fail() { echo -e "  ${RED}FAIL${NC} $1"; }
+warn() { echo -e "  ${YELLOW}WARN${NC} $1"; }
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -73,8 +62,6 @@ case "$ARCH" in
   x86_64)  ARCH="amd64" ;;
   aarch64) ARCH="arm64" ;;
   arm64)   ARCH="arm64" ;;
-  armv7l)  ARCH="arm" ;;
-  i386|i686) ARCH="386" ;;
   *)
     fail "Unsupported architecture: $ARCH"
     exit 1
@@ -94,7 +81,6 @@ success "Detected: $OS/$ARCH"
 
 # Step 2: Determine install directory
 if [[ -z "${INSTALL_DIR:-}" ]]; then
-  # Try user-local first, fall back to system if we have sudo
   if [[ -d "$HOME/.local/bin" ]] || mkdir -p "$HOME/.local/bin" 2>/dev/null; then
     INSTALL_DIR="$HOME/.local/bin"
   elif [[ -w "/usr/local/bin" ]]; then
@@ -120,13 +106,12 @@ if [[ "$VERSION" == "latest" ]]; then
   fi
   success "Latest version: $VERSION"
 else
-  VERSION="${VERSION#v}"  # Remove leading 'v' if present
+  VERSION="${VERSION#v}"
   success "Using specified version: $VERSION"
 fi
 
 # Step 4: Build download URL
-# Expected archive name: gres-b2b_<version>_<os>_<arch>.tar.gz
-ARCHIVE_NAME="gres-b2b_${VERSION}_${OS}_${ARCH}.tar.gz"
+ARCHIVE_NAME="gres-b2b.zip"
 DOWNLOAD_URL="https://github.com/$REPO/releases/download/v$VERSION/$ARCHIVE_NAME"
 step "Download URL: $DOWNLOAD_URL"
 
@@ -150,11 +135,17 @@ fi
 success "Downloaded"
 
 step "Extracting archive..."
-tar -xzf "$TEMP_DIR/$ARCHIVE_NAME" -C "$TEMP_DIR"
+if command -v unzip >/dev/null 2>&1; then
+  unzip -q "$TEMP_DIR/$ARCHIVE_NAME" -d "$TEMP_DIR"
+elif command -v bsdtar >/dev/null 2>&1; then
+  bsdtar -xf "$TEMP_DIR/$ARCHIVE_NAME" -C "$TEMP_DIR"
+else
+  fail "unzip/bsdtar not found"
+  exit 1
+fi
 
-# Find the binary
-EXTRACTED_BINARY=$(find "$TEMP_DIR" -name "$BINARY_NAME" -type f | head -1)
-if [[ -z "$EXTRACTED_BINARY" ]]; then
+EXTRACTED_BINARY="$TEMP_DIR/bin/${OS}-${ARCH}/$BINARY_NAME"
+if [[ ! -f "$EXTRACTED_BINARY" ]]; then
   fail "Binary $BINARY_NAME not found in archive"
   exit 1
 fi
@@ -180,15 +171,9 @@ else
 
   SHELL_NAME=$(basename "$SHELL")
   case "$SHELL_NAME" in
-    bash)
-      PROFILE_FILE="$HOME/.bashrc"
-      ;;
-    zsh)
-      PROFILE_FILE="$HOME/.zshrc"
-      ;;
-    *)
-      PROFILE_FILE="$HOME/.profile"
-      ;;
+    bash) PROFILE_FILE="$HOME/.bashrc" ;;
+    zsh)  PROFILE_FILE="$HOME/.zshrc" ;;
+    *)    PROFILE_FILE="$HOME/.profile" ;;
   esac
 
   echo ""
@@ -196,7 +181,6 @@ else
   echo "    source $PROFILE_FILE"
   echo ""
 
-  # Add to PATH for current session
   export PATH="$INSTALL_DIR:$PATH"
 fi
 
@@ -228,8 +212,11 @@ echo "  3. Check prerequisites:"
 echo -e "     ${CYAN}gres-b2b doctor${NC}"
 echo ""
 echo "  4. Run your first scan:"
-echo -e "     ${CYAN}gres-b2b scan --live${NC}"
+echo -e "     ${CYAN}gres-b2b scan${NC}"
+echo ""
+echo "  5. Start MCP server:"
+echo -e "     ${CYAN}gres-b2b mcp serve${NC}"
 echo ""
 echo -e "  ${YELLOW}Documentation:${NC}"
-echo "    https://ajranjith.github.io/b2b-governance-action/onboarding/"
+echo "    https://github.com/$REPO/blob/main/docs/INSTALL.md"
 echo ""
