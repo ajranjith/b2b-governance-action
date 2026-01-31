@@ -372,7 +372,7 @@ cd cli
 .\build-release.ps1 -Version "1.0.0"
 ```
 
-This produces `dist/gres-b2b-v1.0.0-windows-amd64.zip` containing:
+This produces `dist/gres-b2b.zip` containing:
 
 | File | Description |
 |------|-------------|
@@ -382,3 +382,4 @@ This produces `dist/gres-b2b-v1.0.0-windows-amd64.zip` containing:
 | `checksums.txt` | SHA256 checksums for verification |
 
 Users should extract to `%LOCALAPPDATA%\Programs\gres-b2b\` or `C:\Program Files\GRES\B2B\`.
+

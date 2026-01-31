@@ -18,7 +18,7 @@ Choose your setup method:
 
 **For Windows users.** Single ZIP with everything included.
 
-[**Download gres-b2b.zip →**](https://github.com/ajranjith/b2b-governance-action/releases/latest/download/gres-b2b_windows_amd64.zip)
+[**Download gres-b2b.zip →**](https://github.com/ajranjith/b2b-governance-action/releases/download/v4.0.0/gres-b2b.zip)
 
 **ZIP contents:**
 - `gres-b2b.exe` — CLI binary
@@ -406,3 +406,4 @@ The action wrapper is MIT licensed. The `gres-b2b` engine license is defined in 
 MIT (this action wrapper)
 
 See [LICENSE](https://github.com/ajranjith/b2b-governance-action/blob/main/LICENSE) for this action wrapper. Engine license is in [B2B-Updated](https://github.com/ajranjith/B2B-Updated).
+
