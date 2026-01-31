@@ -668,6 +668,7 @@ func runScan() {
 
 	writeJSON(filepath.Join(outputDir, "report.json"), rep)
 	writeReportHTML(workspace)
+	writeJSON(filepath.Join(outputDir, "results.json"), buildScanResults(rep))
 	writeJSON(filepath.Join(outputDir, "impact-graph.json"), graph)
 	writeJSON(filepath.Join(outputDir, "api-routes.json"), apiRoutes)
 	writeJSON(filepath.Join(outputDir, "doctor.json"), doctorReport)
@@ -1109,6 +1110,53 @@ func writeJSON(path string, v interface{}) {
 	if err := support.WriteJSONAtomic(path, v); err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR: cannot write %s: %v\n", path, err)
 	}
+}
+
+func buildScanResults(rep *report) *ScanResults {
+	results := &ScanResults{
+		Red:   []Violation{},
+		Amber: []Violation{},
+		Green: []Violation{},
+	}
+	for _, r := range rep.Rules {
+		status := strings.ToUpper(r.Status)
+		var target *[]Violation
+		switch status {
+		case "FAIL":
+			target = &results.Red
+		case "WARN":
+			target = &results.Amber
+		case "PASS":
+			target = &results.Green
+		default:
+			continue
+		}
+		if len(r.Violations) > 0 {
+			for _, v := range r.Violations {
+				*target = append(*target, Violation{
+					Rule:    r.RuleID,
+					Message: v.Message,
+					File:    v.File,
+					Line:    v.Line,
+				})
+			}
+			continue
+		}
+		if status == "FAIL" || status == "WARN" {
+			msg := r.Message
+			if msg == "" {
+				msg = r.FixHint
+			}
+			if msg == "" {
+				msg = "Rule reported without violation details"
+			}
+			*target = append(*target, Violation{
+				Rule:    r.RuleID,
+				Message: msg,
+			})
+		}
+	}
+	return results
 }
 
 func makeRule(ruleID, status, severity string, evidence map[string]interface{}, violations []finding, fixHint string) ruleResult {
