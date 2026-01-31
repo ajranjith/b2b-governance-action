@@ -3,21 +3,24 @@ package main
 import (
 	"encoding/json"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
+
+	"github.com/ajranjith/b2b-governance-action/cli/internal/support"
+	"gopkg.in/yaml.v3"
 )
 
 // VerifyConfig represents .b2b/config.yml gating configuration.
 // Pointer fields distinguish "unset" from zero values.
 type VerifyConfig struct {
-	FailOnRed  *bool `json:"fail_on_red,omitempty"`
-	AllowAmber *bool `json:"allow_amber,omitempty"`
-	MaxRed     *int  `json:"max_red,omitempty"`
-	MaxAmber   *int  `json:"max_amber,omitempty"`
+	FailOnRed  *bool `json:"fail_on_red,omitempty" yaml:"fail_on_red"`
+	AllowAmber *bool `json:"allow_amber,omitempty" yaml:"allow_amber"`
+	MaxRed     *int  `json:"max_red,omitempty" yaml:"max_red"`
+	MaxAmber   *int  `json:"max_amber,omitempty" yaml:"max_amber"`
 }
 
 // Violation represents a single governance finding.
@@ -51,7 +54,7 @@ type VerifyResult struct {
 }
 
 // ---------------------------------------------------------------------------
-// Config loading (.b2b/config.yml) — simple flat YAML parser (no dependency)
+// Config loading (.b2b/config.yml) - YAML parser
 // ---------------------------------------------------------------------------
 
 func loadVerifyConfig(workspaceRoot string) (*VerifyConfig, error) {
@@ -63,62 +66,16 @@ func loadVerifyConfig(workspaceRoot string) (*VerifyConfig, error) {
 		}
 		return nil, fmt.Errorf("failed to read verify config %s: %w", configPath, err)
 	}
-	return parseVerifyConfigYAML(data)
+	return parseVerifyConfigYAML(support.StripBOM(data))
 }
 
-// parseVerifyConfigYAML handles the flat key: value YAML used by .b2b/config.yml.
+// parseVerifyConfigYAML parses .b2b/config.yml using YAML v3.
 func parseVerifyConfigYAML(data []byte) (*VerifyConfig, error) {
-	kv := parseSimpleYAML(data)
 	cfg := &VerifyConfig{}
-
-	if v, ok := kv["fail_on_red"]; ok {
-		b, err := strconv.ParseBool(v)
-		if err != nil {
-			return nil, fmt.Errorf("invalid fail_on_red value %q: %w", v, err)
-		}
-		cfg.FailOnRed = boolPtr(b)
+	if err := yaml.Unmarshal(data, cfg); err != nil {
+		return nil, fmt.Errorf("failed to parse verify config: %w", err)
 	}
-	if v, ok := kv["allow_amber"]; ok {
-		b, err := strconv.ParseBool(v)
-		if err != nil {
-			return nil, fmt.Errorf("invalid allow_amber value %q: %w", v, err)
-		}
-		cfg.AllowAmber = boolPtr(b)
-	}
-	if v, ok := kv["max_red"]; ok {
-		n, err := strconv.Atoi(v)
-		if err != nil {
-			return nil, fmt.Errorf("invalid max_red value %q: %w", v, err)
-		}
-		cfg.MaxRed = intPtr(n)
-	}
-	if v, ok := kv["max_amber"]; ok {
-		n, err := strconv.Atoi(v)
-		if err != nil {
-			return nil, fmt.Errorf("invalid max_amber value %q: %w", v, err)
-		}
-		cfg.MaxAmber = intPtr(n)
-	}
-
 	return cfg, nil
-}
-
-// parseSimpleYAML extracts flat key: value pairs, skipping comments and blanks.
-func parseSimpleYAML(data []byte) map[string]string {
-	result := make(map[string]string)
-	for _, line := range strings.Split(string(data), "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-		parts := strings.SplitN(line, ":", 2)
-		if len(parts) == 2 {
-			key := strings.TrimSpace(parts[0])
-			val := strings.TrimSpace(parts[1])
-			result[key] = val
-		}
-	}
-	return result
 }
 
 // ---------------------------------------------------------------------------
@@ -132,7 +89,7 @@ func loadScanResults(workspaceRoot string) (*ScanResults, error) {
 		return nil, fmt.Errorf("failed to read scan results %s: %w", resultsPath, err)
 	}
 	var results ScanResults
-	if err := json.Unmarshal(data, &results); err != nil {
+	if err := json.Unmarshal(support.StripBOM(data), &results); err != nil {
 		return nil, fmt.Errorf("failed to parse scan results: %w", err)
 	}
 	return &results, nil
@@ -157,6 +114,7 @@ func evaluateGating(cfg *VerifyConfig, redCount, amberCount, greenCount int) *Ve
 	}
 
 	var reasons []string
+	var primary string
 
 	// Effective boolean defaults
 	failOnRed := true
@@ -171,21 +129,37 @@ func evaluateGating(cfg *VerifyConfig, redCount, amberCount, greenCount int) *Ve
 	// 1. Numeric caps (checked first per spec)
 	if cfg.MaxRed != nil && redCount > *cfg.MaxRed {
 		result.Pass = false
-		reasons = append(reasons, fmt.Sprintf("FAILED: RED violations (%d) exceeded max_red (%d)", redCount, *cfg.MaxRed))
+		msg := fmt.Sprintf("FAILED: RED violations (%d) exceeded max_red (%d)", redCount, *cfg.MaxRed)
+		reasons = append(reasons, msg)
+		if primary == "" {
+			primary = msg
+		}
 	}
 	if cfg.MaxAmber != nil && amberCount > *cfg.MaxAmber {
 		result.Pass = false
-		reasons = append(reasons, fmt.Sprintf("FAILED: AMBER violations (%d) exceeded max_amber (%d)", amberCount, *cfg.MaxAmber))
+		msg := fmt.Sprintf("FAILED: AMBER violations (%d) exceeded max_amber (%d)", amberCount, *cfg.MaxAmber)
+		reasons = append(reasons, msg)
+		if primary == "" {
+			primary = msg
+		}
 	}
 
 	// 2. Boolean rules
 	if failOnRed && redCount > 0 {
 		result.Pass = false
-		reasons = append(reasons, fmt.Sprintf("FAILED: %d RED violations detected (fail_on_red enabled)", redCount))
+		msg := fmt.Sprintf("FAILED: %d RED violations detected (fail_on_red enabled)", redCount)
+		reasons = append(reasons, msg)
+		if primary == "" {
+			primary = msg
+		}
 	}
 	if !allowAmber && amberCount > 0 {
 		result.Pass = false
-		reasons = append(reasons, fmt.Sprintf("FAILED: %d AMBER violations detected (allow_amber disabled)", amberCount))
+		msg := fmt.Sprintf("FAILED: %d AMBER violations detected (allow_amber disabled)", amberCount)
+		reasons = append(reasons, msg)
+		if primary == "" {
+			primary = msg
+		}
 	}
 
 	result.Reasons = reasons
@@ -209,7 +183,11 @@ func evaluateGating(cfg *VerifyConfig, redCount, amberCount, greenCount int) *Ve
 			result.Message = fmt.Sprintf("PASSED: RED=%d, AMBER=%d, GREEN=%d", redCount, amberCount, greenCount)
 		}
 	} else {
-		result.Message = strings.Join(reasons, "; ")
+		if primary != "" {
+			result.Message = primary
+		} else {
+			result.Message = strings.Join(reasons, "; ")
+		}
 	}
 
 	return result
@@ -219,58 +197,44 @@ func evaluateGating(cfg *VerifyConfig, redCount, amberCount, greenCount int) *Ve
 // Output writers
 // ---------------------------------------------------------------------------
 
-// writeCertificate writes .b2b/certificate.json
-func writeCertificate(workspaceRoot string, result *VerifyResult) error {
-	dir := filepath.Join(workspaceRoot, ".b2b")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return err
-	}
-	data, err := json.MarshalIndent(result, "", "  ")
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(filepath.Join(dir, "certificate.json"), data, 0o644)
-}
-
 // printHUD prints a human-readable summary to stdout.
 func printHUD(result *VerifyResult) {
-	fmt.Println("╔══════════════════════════════════════════════════╗")
-	fmt.Println("║           GRES B2B Governance Verify            ║")
-	fmt.Println("╠══════════════════════════════════════════════════╣")
+	fmt.Println("+--------------------------------------------------+")
+	fmt.Println("|           GRES B2B Governance Verify            |")
+	fmt.Println("+--------------------------------------------------+")
 
-	status := "PASS ✓"
+	status := "PASS"
 	if !result.Pass {
-		status = "FAIL ✗"
+		status = "FAIL"
 	}
-	fmt.Printf("║  Status: %-40s║\n", status)
-	fmt.Printf("║  RED:    %-40s║\n", formatCount(result.RedCount, result.MaxRed, "max_red"))
-	fmt.Printf("║  AMBER:  %-40s║\n", formatCount(result.AmberCount, result.MaxAmber, "max_amber"))
-	fmt.Printf("║  GREEN:  %-40d║\n", result.GreenCount)
+	fmt.Printf("|  Status: %-40s|\n", status)
+	fmt.Printf("|  RED:    %-40s|\n", formatCount(result.RedCount, result.MaxRed, "max_red"))
+	fmt.Printf("|  AMBER:  %-40s|\n", formatCount(result.AmberCount, result.MaxAmber, "max_amber"))
+	fmt.Printf("|  GREEN:  %-40d|\n", result.GreenCount)
 
 	if result.FailOnRed != nil {
-		fmt.Printf("║  fail_on_red:  %-34v║\n", *result.FailOnRed)
+		fmt.Printf("|  fail_on_red:  %-34v|\n", *result.FailOnRed)
 	}
 	if result.AllowAmber != nil {
-		fmt.Printf("║  allow_amber:  %-34v║\n", *result.AllowAmber)
+		fmt.Printf("|  allow_amber:  %-34v|\n", *result.AllowAmber)
 	}
 
-	fmt.Println("╠══════════════════════════════════════════════════╣")
+	fmt.Println("+--------------------------------------------------+")
 	if len(result.Reasons) > 0 {
 		for _, r := range result.Reasons {
 			// Wrap long reasons
 			if len(r) > 48 {
-				fmt.Printf("║  %-48s║\n", r[:48])
-				fmt.Printf("║  %-48s║\n", r[48:])
+				fmt.Printf("|  %-48s|\n", r[:48])
+				fmt.Printf("|  %-48s|\n", r[48:])
 			} else {
-				fmt.Printf("║  %-48s║\n", r)
+				fmt.Printf("|  %-48s|\n", r)
 			}
 		}
 	} else {
-		fmt.Printf("║  %-48s║\n", result.Message)
+		fmt.Printf("|  %-48s|\n", result.Message)
 	}
-	fmt.Println("╚══════════════════════════════════════════════════╝")
+	fmt.Println("+--------------------------------------------------+")
 }
-
 func formatCount(count int, cap *int, label string) string {
 	if cap != nil {
 		return fmt.Sprintf("%d (%s=%d)", count, label, *cap)
@@ -372,7 +336,7 @@ func writeSARIF(workspaceRoot string, scanResults *ScanResults, verifyResult *Ve
 		Schema:  "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
 		Version: "2.1.0",
 		Runs: []sarifRun{{
-			Tool: sarifTool{Driver: sarifDriver{Name: "gres-b2b", Version: Version}},
+			Tool:    sarifTool{Driver: sarifDriver{Name: "gres-b2b", Version: Version}},
 			Results: results,
 		}},
 	}
@@ -381,7 +345,7 @@ func writeSARIF(workspaceRoot string, scanResults *ScanResults, verifyResult *Ve
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(workspaceRoot, ".b2b", "results.sarif"), data, 0o644)
+	return support.WriteFileAtomic(filepath.Join(workspaceRoot, ".b2b", "results.sarif"), data)
 }
 
 // ---------------------------------------------------------------------------
@@ -404,16 +368,30 @@ type junitTestcase struct {
 	Classname string        `xml:"classname,attr"`
 	Time      string        `xml:"time,attr"`
 	Failure   *junitFailure `xml:"failure,omitempty"`
+	Skipped   *junitSkipped `xml:"skipped,omitempty"`
 }
 type junitFailure struct {
 	Message string `xml:"message,attr"`
 	Type    string `xml:"type,attr"`
 	Body    string `xml:",chardata"`
 }
+type junitSkipped struct {
+	Message string `xml:"message,attr,omitempty"`
+}
 
 func writeJUnit(workspaceRoot string, scanResults *ScanResults, verifyResult *VerifyResult) error {
 	var cases []junitTestcase
 	failures := 0
+
+	allowAmber := false
+	if verifyResult.AllowAmber != nil {
+		allowAmber = *verifyResult.AllowAmber
+	}
+
+	amberViolated := (!allowAmber && len(scanResults.Amber) > 0)
+	if verifyResult.MaxAmber != nil && len(scanResults.Amber) > *verifyResult.MaxAmber {
+		amberViolated = true
+	}
 
 	for _, v := range scanResults.Red {
 		tc := junitTestcase{
@@ -435,14 +413,16 @@ func writeJUnit(workspaceRoot string, scanResults *ScanResults, verifyResult *Ve
 			Classname: "governance.amber",
 			Time:      "0",
 		}
-		// Amber is a failure only if gating says so
-		if !verifyResult.Pass {
+		// Amber is a failure only if amber gating is violated
+		if amberViolated {
 			tc.Failure = &junitFailure{
 				Message: v.Message,
 				Type:    "AMBER",
 				Body:    fmt.Sprintf("%s: %s", v.File, v.Message),
 			}
 			failures++
+		} else {
+			tc.Skipped = &junitSkipped{Message: "amber tolerated by gating"}
 		}
 		cases = append(cases, tc)
 	}
@@ -485,7 +465,7 @@ func writeJUnit(workspaceRoot string, scanResults *ScanResults, verifyResult *Ve
 		return err
 	}
 	header := []byte(xml.Header)
-	return os.WriteFile(filepath.Join(workspaceRoot, ".b2b", "junit.xml"), append(header, data...), 0o644)
+	return support.WriteFileAtomic(filepath.Join(workspaceRoot, ".b2b", "junit.xml"), append(header, data...))
 }
 
 // ---------------------------------------------------------------------------
@@ -505,6 +485,10 @@ func runVerify() {
 	// Load scan results
 	scanResults, err := loadScanResults(workspace)
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			fmt.Fprintf(os.Stderr, "ERROR: Scan results missing: expected %s. Run `gres-b2b scan` or ensure pipeline produces it.\n", filepath.Join(workspace, ".b2b", "results.json"))
+			os.Exit(1)
+		}
 		fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
 		os.Exit(1)
 	}
@@ -519,15 +503,43 @@ func runVerify() {
 	}
 
 	// Write outputs
-	if err := writeCertificate(workspace, result); err != nil {
-		fmt.Fprintf(os.Stderr, "WARNING: Failed to write certificate: %v\n", err)
-	}
 	if err := writeSARIF(workspace, scanResults, result); err != nil {
 		fmt.Fprintf(os.Stderr, "WARNING: Failed to write SARIF: %v\n", err)
 	}
 	if err := writeJUnit(workspace, scanResults, result); err != nil {
 		fmt.Fprintf(os.Stderr, "WARNING: Failed to write JUnit: %v\n", err)
 	}
+
+	certHash, verified, err := generateVerifyCertificate(workspace, result)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "WARNING: Failed to write certificate: %v\n", err)
+	}
+	if err := updateReportSignature(workspace, verified, certHash); err != nil {
+		fmt.Fprintf(os.Stderr, "WARNING: Failed to update report signature: %v\n", err)
+	}
+	if result.Pass {
+		if _, err := createBackupSnapshot(workspace); err != nil {
+			fmt.Fprintf(os.Stderr, "WARNING: Failed to create backup snapshot: %v\n", err)
+		}
+	}
+
+	auditEntry := support.AuditEntry{
+		Mode:           "verify",
+		RedCount:       result.RedCount,
+		AmberCount:     result.AmberCount,
+		GreenCount:     result.GreenCount,
+		CertificateSHA: certHash,
+	}
+	if data, err := os.ReadFile(filepath.Join(workspace, ".b2b", "report.json")); err == nil {
+		var rep report
+		if err := json.Unmarshal(data, &rep); err == nil {
+			auditEntry.Phase1Status = rep.Phase1Status
+			auditEntry.Phase2Status = rep.Phase2Status
+			auditEntry.Phase3Status = rep.Phase3Status
+			auditEntry.Phase4Status = rep.Phase4Status
+		}
+	}
+	_ = support.AppendAudit(workspace, auditEntry)
 
 	// Print HUD
 	printHUD(result)
@@ -536,10 +548,3 @@ func runVerify() {
 		os.Exit(1)
 	}
 }
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-func boolPtr(b bool) *bool { return &b }
-func intPtr(n int) *int    { return &n }

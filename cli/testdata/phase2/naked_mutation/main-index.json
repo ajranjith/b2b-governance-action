@@ -1,0 +1,7 @@
+﻿{
+  "version": "1.0",
+  "modules": [
+    {"name": "mod", "root": "mod", "svcId": "SVC_M"}
+  ],
+  "ids": {"API": {"X": 1}, "SVC": {"Y": 1}, "DB": {"Z": 1}}
+}

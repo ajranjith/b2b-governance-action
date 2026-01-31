@@ -12,11 +12,17 @@ package main
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
+
+	cfgpkg "github.com/ajranjith/b2b-governance-action/cli/internal/config"
+	"github.com/ajranjith/b2b-governance-action/cli/internal/mcpio"
+	"github.com/ajranjith/b2b-governance-action/cli/internal/support"
 )
 
 // Version information (set at build time)
@@ -24,62 +30,6 @@ var (
 	Version   = "1.0.0"
 	BuildDate = "unknown"
 )
-
-// Config structures
-type Config struct {
-	SchemaVersion string        `json:"schemaVersion"`
-	App           AppConfig     `json:"app"`
-	Paths         PathsConfig   `json:"paths"`
-	Run           RunConfig     `json:"run"`
-	Reports       ReportsConfig `json:"reports"`
-	Install       InstallConfig `json:"install"`
-	Logging       LoggingConfig `json:"logging"`
-}
-
-type AppConfig struct {
-	Name    string `json:"name"`
-	Channel string `json:"channel"`
-}
-
-type PathsConfig struct {
-	WorkspaceRoot string `json:"workspaceRoot"`
-	OutputDir     string `json:"outputDir"`
-	CacheDir      string `json:"cacheDir"`
-}
-
-type RunConfig struct {
-	DefaultMode string `json:"defaultMode"`
-	Args        string `json:"args"`
-}
-
-type ReportsConfig struct {
-	SARIF ReportConfig `json:"sarif"`
-	JUnit ReportConfig `json:"junit"`
-	Hints ReportConfig `json:"hints"`
-}
-
-type ReportConfig struct {
-	Enabled bool   `json:"enabled"`
-	Path    string `json:"path"`
-}
-
-type InstallConfig struct {
-	CanonicalDir       string                   `json:"canonicalDir"`
-	ExeName            string                   `json:"exeName"`
-	DuplicateDetection DuplicateDetectionConfig `json:"duplicateDetection"`
-}
-
-type DuplicateDetectionConfig struct {
-	Enabled    bool     `json:"enabled"`
-	Severity   string   `json:"severity"`
-	MaxResults int      `json:"maxResults"`
-	ScanDirs   []string `json:"scanDirs"`
-}
-
-type LoggingConfig struct {
-	Level string `json:"level"`
-	JSON  bool   `json:"json"`
-}
 
 // JSON-RPC 2.0 structures
 type JSONRPCRequest struct {
@@ -115,29 +65,146 @@ type ServerInfo struct {
 }
 
 // Global config
-var config *Config
+var config *cfgpkg.Config
 var configPath string
 
 func main() {
 	// Parse args for --config flag first
 	args := os.Args[1:]
 	configFlag := ""
+	verifyCertPath := ""
+	ingestIncoming := ""
+	ingestLocked := ""
+	ingestResume := false
+	watchPath := ""
+	shadowVectors := ""
+	shadowRoot := ""
+	fixRun := false
+	fixDryRun := false
+	supportBundleRoot := ""
+	setupRun := false
+	rollback := false
+	rollbackLatest := false
+	rollbackTo := ""
 	filteredArgs := []string{}
 
 	for i := 0; i < len(args); i++ {
 		if args[i] == "--config" && i+1 < len(args) {
 			configFlag = args[i+1]
 			i++ // Skip the value
+		} else if args[i] == "--verify-cert" && i+1 < len(args) {
+			verifyCertPath = args[i+1]
+			i++
+		} else if args[i] == "--ingest-admin" {
+			if i+1 < len(args) && !strings.HasPrefix(args[i+1], "--") {
+				ingestIncoming = args[i+1]
+				i++
+			}
+			if i+1 < len(args) && !strings.HasPrefix(args[i+1], "--") {
+				ingestLocked = args[i+1]
+				i++
+			}
+		} else if args[i] == "--resume" {
+			ingestResume = true
+		} else if args[i] == "--watch" {
+			if i+1 < len(args) && !strings.HasPrefix(args[i+1], "--") {
+				watchPath = args[i+1]
+				i++
+			}
+		} else if args[i] == "--shadow" {
+			// handled via --vectors
+		} else if args[i] == "--vectors" && i+1 < len(args) {
+			shadowVectors = args[i+1]
+			i++
+			if i+1 < len(args) && !strings.HasPrefix(args[i+1], "--") {
+				shadowRoot = args[i+1]
+				i++
+			}
+		} else if args[i] == "--fix" {
+			fixRun = true
+		} else if args[i] == "--dry-run" {
+			fixDryRun = true
+		} else if args[i] == "--support-bundle" {
+			if i+1 < len(args) && !strings.HasPrefix(args[i+1], "--") {
+				supportBundleRoot = args[i+1]
+				i++
+			}
+		} else if args[i] == "--setup" {
+			setupRun = true
+		} else if args[i] == "--rollback" {
+			rollback = true
+		} else if args[i] == "--latest-green" {
+			rollbackLatest = true
+		} else if args[i] == "--to" && i+1 < len(args) {
+			rollbackTo = args[i+1]
+			i++
 		} else {
 			filteredArgs = append(filteredArgs, args[i])
 		}
 	}
 
-	// Load config
-	var err error
-	config, configPath, err = loadConfig(configFlag)
+	// Load config (defaults + optional override)
+	if configFlag != "" {
+		if _, err := os.Stat(configFlag); err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				fmt.Fprintf(os.Stderr, "ERROR: Config not found: %s\n", configFlag)
+				os.Exit(1)
+			}
+			fmt.Fprintf(os.Stderr, "ERROR: Config stat failed: %v\n", err)
+			os.Exit(1)
+		}
+	}
+
+	cfg, cfgPath, warnings, err := cfgpkg.Resolve(cfgpkg.Flags{ConfigPath: configFlag})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR: Config load failed: %v\n", err)
+		os.Exit(1)
+	}
+	for _, w := range warnings {
+		fmt.Fprintf(os.Stderr, "WARNING: %s\n", w)
+	}
+	config = &cfg
+	configPath = cfgPath
+
+	if verifyCertPath != "" {
+		runVerifyCert(verifyCertPath)
+		return
+	}
+
+	if ingestIncoming != "" || ingestLocked != "" || ingestResume {
+		runIngestAdmin(ingestIncoming, ingestLocked, ingestResume)
+		return
+	}
+	if watchPath != "" {
+		runWatch(watchPath)
+		return
+	}
+	if shadowVectors != "" {
+		runShadow(shadowVectors, shadowRoot)
+		return
+	}
+	if fixRun {
+		runFix(fixDryRun)
+		return
+	}
+	if supportBundleRoot != "" {
+		runSupportBundle(supportBundleRoot)
+		return
+	}
+	if setupRun {
+		runSetup()
+		return
+	}
+	if rollback {
+		if rollbackLatest {
+			runRollbackLatest()
+			return
+		}
+		if rollbackTo != "" {
+			runRollbackTo(rollbackTo)
+			return
+		}
+		fmt.Fprintln(os.Stderr, "Usage: gres-b2b --rollback --latest-green OR --rollback --to <UTC_YYYYMMDD_HHMMSS>")
 		os.Exit(1)
 	}
 
@@ -174,6 +241,9 @@ func main() {
 	case "verify":
 		runVerify()
 
+	case "scan":
+		runScan()
+
 	case "doctor":
 		runDoctor()
 
@@ -192,158 +262,24 @@ func printUsage() {
 
 Usage:
   gres-b2b --version              Show version information
-  gres-b2b --config <path>        Use specific config file
+  gres-b2b --config <path>        Use specific config file (optional override)
+  gres-b2b --verify-cert <path>   Verify a signed certificate
+  gres-b2b --ingest-admin [in] [locked] [--resume]  Atomic ingest from incoming to locked
+  gres-b2b --watch <path>         Watch and rescan on changes
+  gres-b2b --shadow --vectors <file.yml> <repoRoot>  Run shadow parity
+  gres-b2b --fix [--dry-run]      Auto-heal structural issues
+  gres-b2b --support-bundle <repoRoot>  Create support bundle zip
+  gres-b2b --setup               Run onboarding setup/resume
   gres-b2b mcp serve              Start MCP server (JSON-RPC 2.0 over stdio)
   gres-b2b mcp selftest           Run MCP handshake self-test
+  gres-b2b scan                   Run governance scan (Phase 1)
   gres-b2b verify                 Run governance verify with gating
   gres-b2b doctor                 Run prerequisite checks
   gres-b2b --help                 Show this help message
 
-Config Search Order:
-  1. --config <path> argument
-  2. gres-b2b.config.json in same folder as executable
-  3. %ProgramData%\GRES\B2B\gres-b2b.config.json
-  4. Built-in defaults (warning shown)`)
-}
-
-// loadConfig loads configuration from JSON file
-// Search order: --config flag, exe directory, ProgramData, defaults
-func loadConfig(configFlag string) (*Config, string, error) {
-	// Default config
-	cfg := &Config{
-		SchemaVersion: "1.0",
-		App: AppConfig{
-			Name:    "GRES B2B Governance Engine",
-			Channel: "release",
-		},
-		Paths: PathsConfig{
-			WorkspaceRoot: ".",
-			OutputDir:     ".b2b",
-			CacheDir:      ".b2b/cache",
-		},
-		Run: RunConfig{
-			DefaultMode: "verify",
-			Args:        "",
-		},
-		Reports: ReportsConfig{
-			SARIF: ReportConfig{Enabled: true, Path: ".b2b/results.sarif"},
-			JUnit: ReportConfig{Enabled: true, Path: ".b2b/junit.xml"},
-			Hints: ReportConfig{Enabled: true, Path: ".b2b/hints.json"},
-		},
-		Install: InstallConfig{
-			CanonicalDir: "%ProgramFiles%\\GRES\\B2B",
-			ExeName:      "gres-b2b.exe",
-			DuplicateDetection: DuplicateDetectionConfig{
-				Enabled:    true,
-				Severity:   "warning",
-				MaxResults: 5,
-				ScanDirs: []string{
-					"%ProgramFiles%",
-					"%ProgramFiles(x86)%",
-					"%ProgramData%",
-					"%LOCALAPPDATA%",
-					"%APPDATA%",
-					"%USERPROFILE%\\Downloads",
-					"%USERPROFILE%\\Desktop",
-				},
-			},
-		},
-		Logging: LoggingConfig{
-			Level: "info",
-			JSON:  false,
-		},
-	}
-
-	// Search for config file
-	searchPaths := []string{}
-
-	// 1. --config flag
-	if configFlag != "" {
-		searchPaths = append(searchPaths, configFlag)
-	}
-
-	// 2. Same folder as executable
-	exePath, err := os.Executable()
-	if err == nil {
-		exeDir := filepath.Dir(exePath)
-		searchPaths = append(searchPaths, filepath.Join(exeDir, "gres-b2b.config.json"))
-	}
-
-	// 3. ProgramData (Windows)
-	if runtime.GOOS == "windows" {
-		programData := os.Getenv("ProgramData")
-		if programData != "" {
-			searchPaths = append(searchPaths, filepath.Join(programData, "GRES", "B2B", "gres-b2b.config.json"))
-		}
-	}
-
-	// Try each path
-	for _, path := range searchPaths {
-		if _, err := os.Stat(path); err == nil {
-			data, err := os.ReadFile(path)
-			if err != nil {
-				return nil, "", fmt.Errorf("failed to read config %s: %w", path, err)
-			}
-
-			var loadedCfg Config
-			if err := json.Unmarshal(data, &loadedCfg); err != nil {
-				return nil, "", fmt.Errorf("failed to parse config %s: %w", path, err)
-			}
-
-			// Validate schemaVersion
-			if loadedCfg.SchemaVersion != "1.0" {
-				return nil, "", fmt.Errorf("unsupported schemaVersion: %s (expected 1.0)", loadedCfg.SchemaVersion)
-			}
-
-			// Force severity to "warning" if set to anything else
-			if loadedCfg.Install.DuplicateDetection.Severity != "" && loadedCfg.Install.DuplicateDetection.Severity != "warning" {
-				fmt.Fprintln(os.Stderr, "WARNING: duplicate detection severity forced to \"warning\".")
-				loadedCfg.Install.DuplicateDetection.Severity = "warning"
-			}
-
-			// Merge with defaults (for missing optional fields)
-			mergeConfigDefaults(&loadedCfg, cfg)
-
-			return &loadedCfg, path, nil
-		}
-	}
-
-	// No config found - use defaults with warning
-	if configFlag == "" {
-		fmt.Fprintln(os.Stderr, "WARNING: Config not found; using defaults.")
-	}
-	return cfg, "", nil
-}
-
-// mergeConfigDefaults fills in missing optional fields from defaults
-func mergeConfigDefaults(cfg, defaults *Config) {
-	if cfg.Paths.OutputDir == "" {
-		cfg.Paths.OutputDir = defaults.Paths.OutputDir
-	}
-	if cfg.Paths.CacheDir == "" {
-		cfg.Paths.CacheDir = defaults.Paths.CacheDir
-	}
-	if cfg.Paths.WorkspaceRoot == "" {
-		cfg.Paths.WorkspaceRoot = defaults.Paths.WorkspaceRoot
-	}
-	if cfg.Run.DefaultMode == "" {
-		cfg.Run.DefaultMode = defaults.Run.DefaultMode
-	}
-	if cfg.Install.CanonicalDir == "" {
-		cfg.Install.CanonicalDir = defaults.Install.CanonicalDir
-	}
-	if cfg.Install.ExeName == "" {
-		cfg.Install.ExeName = defaults.Install.ExeName
-	}
-	if cfg.Install.DuplicateDetection.MaxResults == 0 {
-		cfg.Install.DuplicateDetection.MaxResults = defaults.Install.DuplicateDetection.MaxResults
-	}
-	if len(cfg.Install.DuplicateDetection.ScanDirs) == 0 {
-		cfg.Install.DuplicateDetection.ScanDirs = defaults.Install.DuplicateDetection.ScanDirs
-	}
-	if cfg.Logging.Level == "" {
-		cfg.Logging.Level = defaults.Logging.Level
-	}
+Config Source:
+  - Built-in defaults (no external file required)
+  - Optional override via --config <path>`)
 }
 
 // expandEnv expands Windows environment variables in a path
@@ -479,19 +415,19 @@ func findExecutables(dir string, name string, maxDepth int) []string {
 
 // runMCPServer starts the MCP JSON-RPC server over stdio
 func runMCPServer() {
-	scanner := bufio.NewScanner(os.Stdin)
-	// Increase buffer size for large messages
-	buf := make([]byte, 64*1024)
-	scanner.Buffer(buf, 1024*1024)
-
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" {
-			continue
+	reader := bufio.NewReader(os.Stdin)
+	for {
+		msg, err := mcpio.ReadMessage(reader)
+		if err != nil {
+			if err == io.EOF {
+				return
+			}
+			fmt.Fprintf(os.Stderr, "ERROR: MCP read failed: %v\n", err)
+			return
 		}
 
 		var req JSONRPCRequest
-		if err := json.Unmarshal([]byte(line), &req); err != nil {
+		if err := json.Unmarshal(msg, &req); err != nil {
 			sendError(nil, -32700, "Parse error", err.Error())
 			continue
 		}
@@ -590,7 +526,9 @@ func sendResult(id interface{}, result interface{}) {
 		Result:  result,
 	}
 	data, _ := json.Marshal(resp)
-	fmt.Println(string(data))
+	if err := mcpio.WriteMessage(os.Stdout, data); err != nil {
+		fmt.Fprintf(os.Stderr, "ERROR: MCP write failed: %v\n", err)
+	}
 }
 
 func sendError(id interface{}, code int, message string, data interface{}) {
@@ -604,7 +542,9 @@ func sendError(id interface{}, code int, message string, data interface{}) {
 		},
 	}
 	respData, _ := json.Marshal(resp)
-	fmt.Println(string(respData))
+	if err := mcpio.WriteMessage(os.Stdout, respData); err != nil {
+		fmt.Fprintf(os.Stderr, "ERROR: MCP write failed: %v\n", err)
+	}
 }
 
 // runSelftest performs a self-test of MCP capabilities
@@ -651,72 +591,16 @@ func runSelftest() {
 
 // runDoctor checks prerequisites
 func runDoctor() {
-	fmt.Println("GRES B2B Doctor - Prerequisite Check")
-	fmt.Println("=====================================")
-	fmt.Println()
-
-	allPassed := true
-
-	// Check 1: Config
-	if configPath != "" {
-		fmt.Printf("[OK] Config: %s\n", configPath)
-	} else {
-		fmt.Println("[INFO] Config: using defaults")
+	loadScanOverrides(config.Paths.WorkspaceRoot)
+	report := buildDoctorReport()
+	path := filepath.Join(config.Paths.WorkspaceRoot, ".b2b", "doctor.json")
+	if err := support.WriteJSONAtomic(path, report); err != nil {
+		fmt.Fprintf(os.Stderr, "ERROR: cannot write doctor.json: %v\n", err)
+		os.Exit(1)
 	}
-
-	// Check 2: Environment
-	localAppData := os.Getenv("LOCALAPPDATA")
-	if localAppData != "" {
-		fmt.Printf("[OK] LOCALAPPDATA: %s\n", localAppData)
-	} else {
-		fmt.Println("[WARN] LOCALAPPDATA not set")
-	}
-
-	// Check 3: Canonical directory
-	canonicalDirRaw := config.Install.CanonicalDir
-	canonicalDirExpanded := expandEnv(canonicalDirRaw)
-	canonicalPath := filepath.Join(canonicalDirExpanded, config.Install.ExeName)
-
-	// Show both raw and expanded paths
-	fmt.Printf("[INFO] CanonicalDir (raw): %s\n", canonicalDirRaw)
-	fmt.Printf("[INFO] CanonicalDir (expanded): %s\n", canonicalDirExpanded)
-
-	if _, err := os.Stat(canonicalPath); err == nil {
-		fmt.Printf("[OK] Canonical exe: %s\n", canonicalPath)
-	} else {
-		fmt.Printf("[INFO] Canonical exe not found: %s\n", canonicalPath)
-	}
-
-	// Check 4: Duplicate detection
-	if config.Install.DuplicateDetection.Enabled {
-		exePath, warnings := resolveExePath()
-		if exePath != "" {
-			fmt.Printf("[OK] Resolved exe: %s\n", exePath)
-		}
-		for _, w := range warnings {
-			fmt.Printf("[WARN] %s\n", w)
-		}
-	}
-
-	// Check 5: Output directory
-	outputDir := config.Paths.OutputDir
-	if _, err := os.Stat(outputDir); err == nil {
-		fmt.Printf("[OK] Output dir exists: %s\n", outputDir)
-	} else {
-		fmt.Printf("[INFO] Output dir will be created: %s\n", outputDir)
-	}
-
-	// Check 6: MCP capability
-	fmt.Println("[OK] MCP JSON-RPC 2.0 support")
-
-	// Check 7: Version
-	fmt.Printf("[OK] Version: %s\n", Version)
-
-	fmt.Println()
-	if allPassed {
-		fmt.Println("All prerequisites met!")
-	} else {
-		fmt.Println("Some checks failed. Please review above.")
+	updateDoctorReport(config.Paths.WorkspaceRoot, report)
+	fmt.Printf("Doctor status: %s\n", report.Status)
+	if report.Status != "OK" {
 		os.Exit(1)
 	}
 }

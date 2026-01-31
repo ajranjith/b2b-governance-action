@@ -1,0 +1,6 @@
+﻿{
+  "openapi": "3.0.0",
+  "info": {"title": "Dealer", "version": "1"},
+  "paths": {},
+  "components": {"schemas": {"DealerResponse": {"type": "object", "properties": {"llid": {"type": "string"}}}}}
+}

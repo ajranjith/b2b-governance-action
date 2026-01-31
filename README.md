@@ -18,7 +18,7 @@ Choose your setup method:
 
 **For Windows users.** Single ZIP with everything included.
 
-[**Download gres-b2b.zip →**](https://github.com/ajranjith/b2b-governance-action/releases/latest/download/gres-b2b-v1.0.0-windows-amd64.zip)
+[**Download gres-b2b.zip →**](https://github.com/ajranjith/b2b-governance-action/releases/latest/download/gres-b2b_windows_amd64.zip)
 
 **ZIP contents:**
 - `gres-b2b.exe` — CLI binary
@@ -101,13 +101,22 @@ B2B eCommerce changes are high-impact: a small mistake in **pricing**, **permiss
 
 ---
 
+
+**HUD enforcement:** HUD will turn RED if the template performs a DB mutation without the mandatory audit wrapper/marker (Naked Mutation).
+
 ## What the MCP Tool Generates
 
 - `.b2b/report.html` — HUD dashboard
 - `.b2b/report.json` — Structured output
 - `.b2b/certificate.json` — Verification certificate
-- `.b2b/report.sarif.json` — SARIF for GitHub Security
-- `.b2b/report.junit.xml` — JUnit for CI reporters
+- `.b2b/results.sarif` — SARIF for GitHub Security
+- `.b2b/junit.xml` — JUnit for CI reporters
+
+- `.b2b/api-routes.json` - API route inventory
+- `.b2b/hints.json` - Live hints list
+- `.b2b/audit.log` - Append-only audit log
+- `.b2b/backups/<timestamp>/` - GREEN/PASS snapshots
+- `.b2b/rollback.log` - Rollback history
 
 **Produces RED / AMBER / GREEN readiness** with specific "fix next" guidance.
 
@@ -127,7 +136,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Run Governance Check
-        uses: ajranjith/b2b-governance-action@v1
+        uses: ajranjith/b2b-governance-action@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 ```
@@ -143,7 +152,7 @@ That's it! The action runs in `verify` mode by default.
 One-time governance scan. Exits with code 1 if thresholds are exceeded.
 
 ```yaml
-- uses: ajranjith/b2b-governance-action@v1
+- uses: ajranjith/b2b-governance-action@v4
   with:
     mode: verify
     token: ${{ secrets.GITHUB_TOKEN }}
@@ -154,7 +163,7 @@ One-time governance scan. Exits with code 1 if thresholds are exceeded.
 Continuous file watching (primarily for local development).
 
 ```yaml
-- uses: ajranjith/b2b-governance-action@v1
+- uses: ajranjith/b2b-governance-action@v4
   with:
     mode: watch
     token: ${{ secrets.GITHUB_TOKEN }}
@@ -165,7 +174,7 @@ Continuous file watching (primarily for local development).
 Compare outputs between legacy and new implementations for parity testing.
 
 ```yaml
-- uses: ajranjith/b2b-governance-action@v1
+- uses: ajranjith/b2b-governance-action@v4
   with:
     mode: shadow
     token: ${{ secrets.GITHUB_TOKEN }}
@@ -180,7 +189,7 @@ Control how violations affect your pipeline.
 ### Fail on Any RED
 
 ```yaml
-- uses: ajranjith/b2b-governance-action@v1
+- uses: ajranjith/b2b-governance-action@v4
   with:
     fail_on_red: true
     token: ${{ secrets.GITHUB_TOKEN }}
@@ -189,7 +198,7 @@ Control how violations affect your pipeline.
 ### Fail on Any AMBER
 
 ```yaml
-- uses: ajranjith/b2b-governance-action@v1
+- uses: ajranjith/b2b-governance-action@v4
   with:
     allow_amber: false
     token: ${{ secrets.GITHUB_TOKEN }}
@@ -198,7 +207,7 @@ Control how violations affect your pipeline.
 ### Strict Mode (No Violations Allowed)
 
 ```yaml
-- uses: ajranjith/b2b-governance-action@v1
+- uses: ajranjith/b2b-governance-action@v4
   with:
     fail_on_red: true
     allow_amber: false
@@ -213,13 +222,14 @@ Control how violations affect your pipeline.
 |-------|-------------|---------|
 | `mode` | Operation mode: `verify` \| `watch` \| `shadow` | `verify` |
 | `config` | Path to custom config file | _(none)_ |
-| `fail_on_red` | Fail on any RED violation | `false` |
-| `allow_amber` | Allow AMBER warnings | `true` |
-| `sarif` | SARIF output path | `.b2b/report.sarif.json` |
-| `junit` | JUnit output path | `.b2b/report.junit.xml` |
+| `fail_on_red` | If set (true/false), writes fail_on_red in .b2b/config.yml | (empty) |
+| `allow_amber` | If set (true/false), writes allow_amber in .b2b/config.yml | (empty) |
+| `sarif` | SARIF output path | `.b2b/results.sarif` |
+| `junit` | JUnit output path | `.b2b/junit.xml` |
 | `version` | Release version to use | `latest` |
 | `repo` | Release repository | `ajranjith/b2b-governance-action` |
 | `token` | GitHub token for downloads | _(none)_ |
+| `vectors` | Shadow vectors.yml (required when mode=shadow) | _(none)_ |
 
 ---
 
@@ -230,10 +240,14 @@ After execution, reports are written to `.b2b/`:
 | File | Description |
 |------|-------------|
 | `certificate.json` | Verification certificate with thresholds |
-| `report.sarif.json` | SARIF format for GitHub Security tab |
-| `report.junit.xml` | JUnit format for test reporters |
+| `results.sarif` | SARIF format for GitHub Security tab |
+| `junit.xml` | JUnit format for test reporters |
 | `report.json` | Machine-readable findings |
 | `report.html` | Human-readable dashboard |
+| `api-routes.json` | BFF API route inventory + API-ID mapping |
+| `hints.json` | Live hints list (watch mode) |
+| `audit.log` | Append-only audit log |
+| `rollback.log` | Rollback history |
 
 ---
 
@@ -242,7 +256,7 @@ After execution, reports are written to `.b2b/`:
 ### Basic Verify
 
 ```yaml
-- uses: ajranjith/b2b-governance-action@v1
+- uses: ajranjith/b2b-governance-action@v4
   with:
     token: ${{ secrets.GITHUB_TOKEN }}
 ```
@@ -250,7 +264,7 @@ After execution, reports are written to `.b2b/`:
 ### Custom Config
 
 ```yaml
-- uses: ajranjith/b2b-governance-action@v1
+- uses: ajranjith/b2b-governance-action@v4
   with:
     config: .b2b/policy.yml
     token: ${{ secrets.GITHUB_TOKEN }}
@@ -259,7 +273,7 @@ After execution, reports are written to `.b2b/`:
 ### Strict Gating
 
 ```yaml
-- uses: ajranjith/b2b-governance-action@v1
+- uses: ajranjith/b2b-governance-action@v4
   with:
     fail_on_red: true
     allow_amber: false
@@ -284,7 +298,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Run Governance Check
-        uses: ajranjith/b2b-governance-action@v1
+        uses: ajranjith/b2b-governance-action@v4
         with:
           fail_on_red: true
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -293,20 +307,20 @@ jobs:
         if: always()
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: .b2b/report.sarif.json
+          sarif_file: .b2b/results.sarif
 
       - name: Upload JUnit
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: governance-junit
-          path: .b2b/report.junit.xml
+          path: .b2b/junit.xml
 ```
 
 ### Pinned Version
 
 ```yaml
-- uses: ajranjith/b2b-governance-action@v1
+- uses: ajranjith/b2b-governance-action@v4
   with:
     version: v4.0.0
     token: ${{ secrets.GITHUB_TOKEN }}

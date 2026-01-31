@@ -1,0 +1,8 @@
+﻿{
+  "red": [],
+  "amber": [
+    {"rule": "AM-1", "message": "a"},
+    {"rule": "AM-2", "message": "b"}
+  ],
+  "green": []
+}

@@ -1,0 +1,12 @@
+﻿{
+  "version": "1.0",
+  "modules": [
+    {"name": "modA", "root": "modules/modA", "svcId": "SVC_A"},
+    {"name": "modB", "root": "modules/modB", "svcId": "SVC_B"}
+  ],
+  "ids": {
+    "API": {"FOO": 1},
+    "SVC": {"BAR": 1},
+    "DB": {"BAZ": 1}
+  }
+}

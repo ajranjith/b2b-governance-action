@@ -10,10 +10,11 @@ REPO="${GRES_B2B_REPO}"
 VERSION="${GRES_B2B_VERSION}"
 MODE="${GRES_B2B_MODE:-verify}"
 CONFIG="${GRES_B2B_CONFIG:-}"
-FAIL_ON_RED="${GRES_B2B_FAIL_ON_RED:-false}"
-ALLOW_AMBER="${GRES_B2B_ALLOW_AMBER:-true}"
-SARIF="${GRES_B2B_SARIF:-.b2b/report.sarif.json}"
-JUNIT="${GRES_B2B_JUNIT:-.b2b/report.junit.xml}"
+FAIL_ON_RED="${GRES_B2B_FAIL_ON_RED:-}"
+ALLOW_AMBER="${GRES_B2B_ALLOW_AMBER:-}"
+VECTORS="${GRES_B2B_VECTORS:-}"
+SARIF="${GRES_B2B_SARIF:-.b2b/results.sarif}"
+JUNIT="${GRES_B2B_JUNIT:-.b2b/junit.xml}"
 
 # ============================================================================
 # Platform detection
@@ -134,7 +135,7 @@ ARGS=()
 
 # Mode flag
 case "${MODE}" in
-  verify) ARGS+=("--verify") ;;
+  verify) ARGS+=("verify") ;;
   watch)  ARGS+=("--watch") ;;
   shadow) ARGS+=("--shadow") ;;
   *)
@@ -148,20 +149,20 @@ if [[ -n "${CONFIG}" ]]; then
   ARGS+=("--config" "${CONFIG}")
 fi
 
-# Strictness flags
-if [[ "${FAIL_ON_RED}" == "true" ]]; then
-  ARGS+=("--fail-on-red")
-fi
-
-if [[ "${ALLOW_AMBER}" == "false" ]]; then
-  ARGS+=("--allow-amber=false")
+# Shadow vectors
+if [[ "${MODE}" == "shadow" ]]; then
+  if [[ -z "${VECTORS}" ]]; then
+    echo "::error::mode=shadow requires inputs.vectors"
+    exit 7
+  fi
+  ARGS+=("--vectors" "${VECTORS}")
 fi
 
 # Print resolved command (safe for logs - no secrets)
 echo "Mode:         ${MODE}"
 echo "Config:       ${CONFIG:-<default>}"
-echo "Fail on RED:  ${FAIL_ON_RED}"
-echo "Allow AMBER:  ${ALLOW_AMBER}"
+echo "Fail on RED:  ${FAIL_ON_RED:-<default>}"
+echo "Allow AMBER:  ${ALLOW_AMBER:-<default>}"
 echo "SARIF output: ${SARIF}"
 echo "JUnit output: ${JUNIT}"
 echo ""
@@ -176,6 +177,16 @@ echo "::group::Run gres-b2b"
 
 # Return to workspace for file operations
 cd "${GITHUB_WORKSPACE:-$(pwd)}"
+
+# Optional strictness overrides (only when no custom config provided)
+if [[ -z "${CONFIG}" ]] && { [[ -n "${FAIL_ON_RED}" ]] || [[ -n "${ALLOW_AMBER}" ]]; }; then
+  mkdir -p .b2b
+  cat > .b2b/config.yml <<EOF
+fail_on_red: ${FAIL_ON_RED:-true}
+allow_amber: ${ALLOW_AMBER:-false}
+EOF
+  ARGS+=("--config" ".b2b/config.yml")
+fi
 
 # Execute
 "${WORKDIR}/${BIN}" "${ARGS[@]}"
@@ -192,3 +203,13 @@ echo "  SARIF:       ${SARIF}"
 echo "  JUnit:       ${JUNIT}"
 echo "  Report:      .b2b/report.json"
 echo "  Dashboard:   .b2b/report.html"
+
+# Copy outputs to custom paths if requested
+if [[ "${SARIF}" != ".b2b/results.sarif" ]]; then
+  mkdir -p "$(dirname "${SARIF}")"
+  cp ".b2b/results.sarif" "${SARIF}"
+fi
+if [[ "${JUNIT}" != ".b2b/junit.xml" ]]; then
+  mkdir -p "$(dirname "${JUNIT}")"
+  cp ".b2b/junit.xml" "${JUNIT}"
+fi

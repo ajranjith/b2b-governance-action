@@ -114,8 +114,8 @@ gres-b2b scan [--live] [--workspace=/path] [--config=/path]
 **Output files:**
 - `.b2b/report.html` - Visual dashboard
 - `.b2b/report.json` - Machine-readable results
-- `.b2b/report.sarif.json` - GitHub Security format
-- `.b2b/report.junit.xml` - CI/CD test format
+- `.b2b/results.sarif` - GitHub Security format
+- `.b2b/junit.xml` - CI/CD test format
 
 **Exit codes:**
 - `0` - Scan completed (may have warnings)
@@ -151,8 +151,6 @@ gres-b2b fix [--live] [--max-iterations=10] [--workspace=/path]
 
 **Output files:**
 - `.b2b/report.html` - Final dashboard
-- `.b2b/comparison.html` - Before/after diff
-- `.b2b/rebuild.log` - Timing and iteration log
 
 ---
 
@@ -161,26 +159,33 @@ gres-b2b fix [--live] [--max-iterations=10] [--workspace=/path]
 Watches for file changes and re-scans automatically.
 
 ```bash
-gres-b2b watch [--workspace=/path] [--debounce=1000]
+gres-b2b --watch <path>
 ```
-
-**Flags:**
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--workspace` | `.` | Path to workspace |
-| `--debounce` | `1000` | Debounce delay in ms |
 
 ---
 
 ### `shadow` - Shadow Mode
 
-Compares outputs between legacy and new implementations.
+Compares parity using vectors.
 
 ```bash
-gres-b2b shadow [--legacy=/path] [--new=/path]
+gres-b2b --shadow --vectors <file.yml> <repoRoot>
 ```
 
 ---
+
+### Other Commands
+
+```bash
+gres-b2b scan
+gres-b2b verify
+gres-b2b doctor
+gres-b2b --fix [--dry-run]
+gres-b2b --support-bundle <repoRoot>
+gres-b2b --setup
+gres-b2b --rollback --latest-green
+gres-b2b --rollback --to <UTC_YYYYMMDD_HHMMSS>
+```
 
 ## MCP Server Mode
 

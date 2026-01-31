@@ -21,25 +21,31 @@ inputs:
 
   # === Strictness ===
   fail_on_red:
-    description: "Fail immediately on any RED violation (sets max_red=0)"
+    description: "If set (true/false), writes fail_on_red in .b2b/config.yml"
     required: false
-    default: "false"
+    default: ""
 
   allow_amber:
-    description: "Allow AMBER warnings without failing (set to false to fail on any AMBER)"
+    description: "If set (true/false), writes allow_amber in .b2b/config.yml"
     required: false
-    default: "true"
+    default: ""
+
+  # === Shadow mode ===
+  vectors:
+    description: "Path to shadow vectors.yml (required when mode=shadow)"
+    required: false
+    default: ""
 
   # === Output paths ===
   sarif:
     description: "Path for SARIF output file"
     required: false
-    default: ".b2b/report.sarif.json"
+    default: ".b2b/results.sarif"
 
   junit:
     description: "Path for JUnit XML output file"
     required: false
-    default: ".b2b/report.junit.xml"
+    default: ".b2b/junit.xml"
 
   # === Release settings ===
   version:
@@ -84,6 +90,7 @@ runs:
         GRES_B2B_CONFIG: ${{ inputs.config }}
         GRES_B2B_FAIL_ON_RED: ${{ inputs.fail_on_red }}
         GRES_B2B_ALLOW_AMBER: ${{ inputs.allow_amber }}
+        GRES_B2B_VECTORS: ${{ inputs.vectors }}
         GRES_B2B_SARIF: ${{ inputs.sarif }}
         GRES_B2B_JUNIT: ${{ inputs.junit }}
         GRES_B2B_VERSION: ${{ inputs.version }}

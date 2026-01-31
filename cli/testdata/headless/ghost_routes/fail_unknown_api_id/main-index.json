@@ -1,0 +1,11 @@
+{
+  "version": "1.0",
+  "modules": [],
+  "ids": {
+    "API": [
+      "API-ORDERS"
+    ],
+    "SVC": {},
+    "DB": {}
+  }
+}

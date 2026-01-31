@@ -1,0 +1,10 @@
+{
+  "red": [
+    {
+      "rule": "X",
+      "message": "fail"
+    }
+  ],
+  "amber": [],
+  "green": []
+}

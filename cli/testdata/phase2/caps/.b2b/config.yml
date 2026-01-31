@@ -1,0 +1,4 @@
+﻿fail_on_red: false
+allow_amber: true
+max_red: 0
+max_amber: 1

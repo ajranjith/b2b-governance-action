@@ -1,0 +1,4 @@
+﻿{
+  "dealer:/orders": {"svcId": "SVC_A"},
+  "admin:/pricing": {"svcId": "SVC_B"}
+}

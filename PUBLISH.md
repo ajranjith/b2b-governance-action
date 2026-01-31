@@ -25,26 +25,26 @@ git push -u origin main
 
 ```bash
 # Create versioned tag
-git tag v1.0.0
-git push origin v1.0.0
+git tag v4.0.0
+git push origin v4.0.0
 
-# Create/update moving major version tag (users reference @v1)
-git tag -f v1
-git push -f origin v1
+# Create/update moving major version tag (users reference @v4)
+git tag -f v4
+git push -f origin v4
 ```
 
 ### 3. Publish to Marketplace
 
 1. Go to https://github.com/ajranjith/b2b-governance-action
 2. Click **Releases** → **Draft a new release**
-3. Select tag `v1.0.0`
+3. Select tag `v4.0.0`
 4. Check **"Publish this Action to the GitHub Marketplace"**
 5. Fill in:
    - **Primary category**: Code quality
    - **Secondary category**: Continuous integration
 6. Add release notes:
    ```
-   ## GRES B2B Governance v1.0.0
+   ## GRES B2B Governance v4.0.0
 
    Initial release of the GitHub Action wrapper.
 
@@ -62,12 +62,12 @@ When releasing new versions:
 
 ```bash
 # Create new version tag
-git tag v1.1.0
-git push origin v1.1.0
+git tag v4.0.1
+git push origin v4.0.1
 
-# Move the major version tag (so @v1 users get updates)
-git tag -f v1
-git push -f origin v1
+# Move the major version tag (so @v4 users get updates)
+git tag -f v4
+git push -f origin v4
 ```
 
 ## File Structure

@@ -1,4 +1,4 @@
-# Verify Gating Configuration
+﻿# Verify Gating Configuration
 
 The `gres-b2b verify` command reads `.b2b/config.yml` from the workspace root to determine pass/fail thresholds.
 
@@ -29,14 +29,16 @@ All fields are optional. Omitted fields use the defaults shown above.
 Rules are evaluated in this order:
 
 1. **Numeric caps** (if set):
-   - If `max_red` is set and `redCount > max_red` → **FAIL**
-   - If `max_amber` is set and `amberCount > max_amber` → **FAIL**
+   - If `max_red` is set and `redCount > max_red` -> **FAIL**
+   - If `max_amber` is set and `amberCount > max_amber` -> **FAIL**
 
 2. **Boolean rules**:
-   - If `fail_on_red` is `true` and `redCount > 0` → **FAIL**
-   - If `allow_amber` is `false` and `amberCount > 0` → **FAIL**
+   - If `fail_on_red` is `true` and `redCount > 0` -> **FAIL**
+   - If `allow_amber` is `false` and `amberCount > 0` -> **FAIL**
 
-3. If no rule triggers a failure → **PASS**
+3. If no rule triggers a failure -> **PASS**
+
+Precedence: caps always win. If a cap is exceeded, the gate fails regardless of `fail_on_red` or `allow_amber`.
 
 ## Priority: Caps vs Booleans
 
@@ -97,8 +99,12 @@ max_amber: 5
 # Run verify against scan results
 gres-b2b verify
 
-# With explicit config
-gres-b2b --config gres-b2b.config.json verify
+# With explicit config override (optional)
+gres-b2b --config my-config.json verify
+
+# Verify certificate signature
+gres-b2b --verify-cert .b2b/certificate.json
 ```
 
 The command reads `.b2b/results.json` (produced by `gres-b2b scan`) and applies gating rules from `.b2b/config.yml`. Exit code is `0` for PASS, `1` for FAIL.
+

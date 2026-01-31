@@ -1,10 +1,14 @@
 package main
 
 import (
+	"crypto/ed25519"
+	"encoding/base64"
 	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/ajranjith/b2b-governance-action/cli/internal/support"
 )
 
 // ---------------------------------------------------------------------------
@@ -233,7 +237,15 @@ func TestVerify_CertificateOutput(t *testing.T) {
 
 	// Evaluate and write certificate
 	result := evaluateGating(cfg, len(scanResults.Red), len(scanResults.Amber), len(scanResults.Green))
-	if err := writeCertificate(tmpDir, result); err != nil {
+	seed := make([]byte, 32)
+	for i := range seed {
+		seed[i] = byte(i + 1)
+	}
+	priv := ed25519.NewKeyFromSeed(seed)
+	os.Setenv("GRES_SIGNING_PRIVATE_KEY", base64.StdEncoding.EncodeToString(priv))
+	defer os.Unsetenv("GRES_SIGNING_PRIVATE_KEY")
+
+	if _, _, err := generateVerifyCertificate(tmpDir, result); err != nil {
 		t.Fatal(err)
 	}
 
@@ -243,7 +255,7 @@ func TestVerify_CertificateOutput(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var cert VerifyResult
+	var cert support.Certificate
 	if err := json.Unmarshal(certData, &cert); err != nil {
 		t.Fatal(err)
 	}
@@ -257,8 +269,8 @@ func TestVerify_CertificateOutput(t *testing.T) {
 	if cert.MaxRed == nil || *cert.MaxRed != 1 {
 		t.Fatal("expected max_red=1 in certificate")
 	}
-	if cert.FailOnRed == nil || *cert.FailOnRed != true {
-		t.Fatal("expected fail_on_red=true in certificate")
+	if !cert.Policy.FailOnRed {
+		t.Fatal("expected fail_on_red=true in certificate policy")
 	}
 }
 
@@ -325,6 +337,63 @@ func TestVerify_JUnitOutput(t *testing.T) {
 	}
 	if !containsStr(content, `name="governance-gate"`) {
 		t.Fatal("missing gate testcase")
+	}
+}
+
+func TestVerify_JUnitOutput_AmberTolerated(t *testing.T) {
+	tmpDir := t.TempDir()
+	b2bDir := filepath.Join(tmpDir, ".b2b")
+	os.MkdirAll(b2bDir, 0o755)
+
+	scanResults := &ScanResults{
+		Red:   []Violation{},
+		Amber: []Violation{{Rule: "WARN-001", Message: "warning"}},
+		Green: []Violation{},
+	}
+	verifyResult := &VerifyResult{Pass: true, AllowAmber: boolP(true)}
+
+	if err := writeJUnit(tmpDir, scanResults, verifyResult); err != nil {
+		t.Fatal(err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(b2bDir, "junit.xml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	content := string(data)
+	if !containsStr(content, "<skipped") {
+		t.Fatal("expected amber to be marked skipped when tolerated")
+	}
+	if containsStr(content, `type="AMBER"`) {
+		t.Fatal("did not expect AMBER failures when tolerated")
+	}
+}
+
+func TestVerify_JUnitOutput_AmberViolated(t *testing.T) {
+	tmpDir := t.TempDir()
+	b2bDir := filepath.Join(tmpDir, ".b2b")
+	os.MkdirAll(b2bDir, 0o755)
+
+	scanResults := &ScanResults{
+		Red:   []Violation{},
+		Amber: []Violation{{Rule: "WARN-001", Message: "warning"}},
+		Green: []Violation{},
+	}
+	verifyResult := &VerifyResult{Pass: false, AllowAmber: boolP(false)}
+
+	if err := writeJUnit(tmpDir, scanResults, verifyResult); err != nil {
+		t.Fatal(err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(b2bDir, "junit.xml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	content := string(data)
+	if !containsStr(content, `type="AMBER"`) {
+		t.Fatal("expected AMBER failures when amber is not allowed")
 	}
 }
 
