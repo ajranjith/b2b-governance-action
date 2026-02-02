@@ -12,6 +12,7 @@
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
+const { runCLI, readJSON } = require("./cli");
 
 // Protocol-first agent definitions - detect by config file signature
 const AGENT_SIGNATURES = {
@@ -156,65 +157,15 @@ function parseJSONSafe(content) {
  * UNIVERSAL: Never returns error - always returns at least Manual fallback
  */
 async function detectAgents() {
-  const detected = [];
+  const cwd = os.homedir();
+  const cli = runCLI(["detect-agents"], cwd);
+  const detectPath = path.join(cwd, ".b2b", "agent-detect.json");
+  const parsed = readJSON(detectPath);
 
-  for (const [agentName, signature] of Object.entries(AGENT_SIGNATURES)) {
-    for (const configPath of signature.configPaths) {
-      if (fs.existsSync(configPath)) {
-        const agent = {
-          id: agentName.toLowerCase().replace(/\s+/g, "-"),
-          name: agentName,
-          configPath,
-          configType: signature.configType,
-          mcpKey: signature.mcpKey,
-          gresKey: signature.gresKey,
-          processNames: signature.processNames,
-          restartMessage: signature.restartMessage,
-          icon: signature.icon,
-          configExists: true,
-          status: "DETECTED",
-        };
-
-        // Try to parse the config
-        try {
-          const content = fs.readFileSync(configPath, "utf8");
-
-          if (signature.configType === "toml") {
-            const parsed = parseTOML(content);
-            agent.configValid = true;
-            agent.configData = parsed;
-            agent.hasGres = !!(parsed.mcp_servers?.gres_b2b || parsed.mcp?.servers?.gres_b2b);
-          } else {
-            const result = parseJSONSafe(content);
-            if (result.success) {
-              agent.configValid = true;
-              agent.configData = result.data;
-              agent.wasRepaired = result.wasRepaired;
-
-              // Check if GRES is already configured
-              const mcpServers = getNestedValue(result.data, signature.mcpKey);
-              agent.hasGres = !!(mcpServers && mcpServers[signature.gresKey]);
-            } else {
-              agent.configValid = false;
-              agent.configError = result.error;
-            }
-          }
-        } catch (e) {
-          agent.configValid = false;
-          agent.configError = e.message;
-        }
-
-        detected.push(agent);
-        break; // Found config for this agent, move to next
-      }
-    }
-  }
-
-  // UNIVERSAL: If no agents detected, return Manual fallback
-  // NEVER return "Detection failed"
-  if (detected.length === 0) {
+  if (!cli.success || !parsed.success) {
     return {
-      success: true,
+      success: false,
+      error: cli.error || parsed.error || "detect-agents failed",
       agents: [createManualFallback()],
       hasAgents: true,
       multipleAgents: false,
@@ -222,15 +173,34 @@ async function detectAgents() {
     };
   }
 
+  const clients = parsed.data.clients || [];
+  let agents = clients.map((c) => ({
+    id: (c.clientName || "agent").toLowerCase().replace(/\s+/g, "-"),
+    name: c.clientName,
+    configPath: c.configPath,
+    configType: c.configFormat,
+    mcpKey: "mcpServers",
+    gresKey: "gres-b2b",
+    configExists: !!c.configPath,
+    configValid: true,
+    hasGres: !!c.alreadyConfigured,
+    status: c.installed ? "DETECTED" : "MANUAL",
+  }));
+
+  if (agents.length === 0) {
+    agents = createManualAgents();
+  }
+
   return {
     success: true,
-    agents: detected,
-    hasAgents: true,
-    multipleAgents: detected.length > 1,
-    isManualFallback: false,
+    agents,
+    hasAgents: agents.length > 0,
+    multipleAgents: agents.length > 1,
+    isManualFallback: agents.every((a) => a.status === "MANUAL"),
   };
 }
 
+/**
 /**
  * Create manual fallback agent for when no signature files are found
  */
@@ -259,6 +229,24 @@ function createManualFallback() {
     hasGres: false,
     status: "MANUAL",
   };
+}
+
+function createManualAgents() {
+  return Object.entries(AGENT_SIGNATURES).map(([name, sig]) => ({
+    id: name.toLowerCase().replace(/\s+/g, "-"),
+    name,
+    configPath: sig.configPaths && sig.configPaths.length ? sig.configPaths[0] : "",
+    configType: sig.configType || "json",
+    mcpKey: sig.mcpKey || "mcpServers",
+    gresKey: sig.gresKey || "gres-b2b",
+    processNames: sig.processNames || [],
+    restartMessage: sig.restartMessage || "Please restart your AI agent to apply changes.",
+    icon: sig.icon || "puzzle",
+    configExists: false,
+    configValid: true,
+    hasGres: false,
+    status: "MANUAL",
+  }));
 }
 
 /**
@@ -297,6 +285,7 @@ module.exports = {
   getAgentProcessNames,
   getRestartMessage,
   createManualFallback,
+  createManualAgents,
   AGENT_SIGNATURES,
   parseJSONSafe,
   parseTOML,

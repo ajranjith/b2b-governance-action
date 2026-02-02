@@ -24,6 +24,23 @@ bin\windows-amd64\gres-b2b.exe doctor
 
 5) Verify MCP tools appear and respond (see Section E)
 
+## A.1) Unified Setup Flow (Wizard + CLI)
+
+Both the Wizard UI and the CLI run the same steps in the same order.
+
+Interactive (recommended):
+```
+bin\windows-amd64\gres-b2b.exe setup
+```
+
+Non-interactive:
+```
+bin\windows-amd64\gres-b2b.exe setup --non-interactive --target <path> --mode brownfield --client cursor --action verify
+```
+
+Step order: S1 Select Target ? S2 Detect Agents ? S3 Connect ? S4 Validate ? S5 Run Action ? S6 Update HUD ? S7 Resume.
+
+
 ## B) CLI Install (Developer / Advanced)
 
 ### Option 1: Build from source
@@ -68,6 +85,23 @@ bin\windows-amd64\gres-b2b.exe doctor
 4) Configure MCP client (see Section D)
 
 5) Verify MCP tools appear and respond (see Section E)
+
+## A.1) Unified Setup Flow (Wizard + CLI)
+
+Both the Wizard UI and the CLI run the same steps in the same order.
+
+Interactive (recommended):
+```
+bin\windows-amd64\gres-b2b.exe setup
+```
+
+Non-interactive:
+```
+bin\windows-amd64\gres-b2b.exe setup --non-interactive --target <path> --mode brownfield --client cursor --action verify
+```
+
+Step order: S1 Select Target ? S2 Detect Agents ? S3 Connect ? S4 Validate ? S5 Run Action ? S6 Update HUD ? S7 Resume.
+
 
 ## B) CLI Install (Developer / Advanced)
 
@@ -342,6 +376,23 @@ bin\windows-amd64\gres-b2b.exe doctor
 4) Configure MCP client (see Section D)
 
 5) Verify MCP tools appear and respond (see Section E)
+
+## A.1) Unified Setup Flow (Wizard + CLI)
+
+Both the Wizard UI and the CLI run the same steps in the same order.
+
+Interactive (recommended):
+```
+bin\windows-amd64\gres-b2b.exe setup
+```
+
+Non-interactive:
+```
+bin\windows-amd64\gres-b2b.exe setup --non-interactive --target <path> --mode brownfield --client cursor --action verify
+```
+
+Step order: S1 Select Target ? S2 Detect Agents ? S3 Connect ? S4 Validate ? S5 Run Action ? S6 Update HUD ? S7 Resume.
+
 
 ## B) CLI Install (Developer / Advanced)
 

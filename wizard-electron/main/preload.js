@@ -93,13 +93,24 @@ contextBridge.exposeInMainWorld("gres", {
     },
   },
 
+  
   // ========================================================================
+  // CLI Bridge
+  // ========================================================================
+  cli: {
+    run: (args, cwd) => ipcRenderer.invoke("cli:run", args, cwd),
+    readJSON: (path) => ipcRenderer.invoke("cli:readJSON", path),
+  },
+
+// ========================================================================
   // Utilities
   // ========================================================================
   util: {
     openUrl: (url) => ipcRenderer.invoke("util:openUrl", url),
     openPath: (path) => ipcRenderer.invoke("util:openPath", path),
     getInstallPath: () => ipcRenderer.invoke("util:getInstallPath"),
+    getHomeDir: () => ipcRenderer.invoke("util:getHomeDir"),
+    writeJSON: (path, payload) => ipcRenderer.invoke("util:writeJSON", path, payload),
     createShortcut: (opts) => ipcRenderer.invoke("util:createShortcut", opts),
   },
 

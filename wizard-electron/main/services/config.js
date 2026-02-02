@@ -12,6 +12,7 @@ const fs = require("fs");
 const path = require("path");
 const os = require("os");
 const { parseJSONSafe, parseTOML } = require("./detect");
+const { runCLI } = require("./cli");
 
 // Install location: %LOCALAPPDATA%\Programs\gres-b2b\
 const INSTALL_DIR = path.join(
@@ -303,13 +304,18 @@ async function writeTomlConfig(agent) {
  * Main write config function - routes to JSON or TOML handler
  */
 async function writeConfig(agent) {
-  if (agent.configType === "toml") {
-    return writeTomlConfig(agent);
-  } else {
-    return writeJsonConfig(agent);
+  const args = ["connect-agent", "--client", agent.id || agent.name || "cursor", "--bin", BINARY_PATH];
+  if (agent.configPath) {
+    args.push("--config", agent.configPath);
   }
+  const res = runCLI(args, process.cwd());
+  if (!res.success) {
+    return { success: false, error: res.stderr || res.error || "connect-agent failed" };
+  }
+  return { success: true, path: agent.configPath || "", created: false };
 }
 
+/**
 /**
  * Repair corrupted config by creating fresh with GRES only
  */

@@ -26,16 +26,8 @@ async function start(sender, opts = {}) {
     // Build args
     const args = ["scan"];
 
-    if (opts.live) {
-      args.push("--live");
-    }
-
     if (opts.source) {
-      args.push("--source", opts.source);
-    }
-
-    if (opts.port) {
-      args.push("--port", String(opts.port));
+      args.push("--target", opts.source);
     }
 
     // Spawn the process
@@ -154,14 +146,10 @@ async function startDetached(opts = {}) {
     };
   }
 
-  const args = ["scan", "--live"];
+  const args = ["scan"];
 
   if (opts.source) {
-    args.push("--source", opts.source);
-  }
-
-  if (opts.port) {
-    args.push("--port", String(opts.port));
+    args.push("--target", opts.source);
   }
 
   try {

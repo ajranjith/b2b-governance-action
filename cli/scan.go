@@ -113,6 +113,7 @@ type moduleFile struct {
 
 func runScan() {
 	workspace := config.Paths.WorkspaceRoot
+	writeChecklistFile(workspace)
 	loadScanOverrides(workspace)
 	outputDir := filepath.Join(workspace, ".b2b")
 	if err := os.MkdirAll(outputDir, 0o755); err != nil {
@@ -2431,4 +2432,51 @@ func toStringSlice(v interface{}) []string {
 	default:
 		return nil
 	}
+}
+
+func normalizeReport(rep *report) {
+	defaultFix := "Review rule documentation and apply the required fixes."
+	for i := range rep.Rules {
+		rule := &rep.Rules[i]
+		for j := range rule.Violations {
+			v := &rule.Violations[j]
+			if v.RuleID == "" {
+				v.RuleID = rule.RuleID
+			}
+			if v.File == "" {
+				v.File = "unknown"
+			}
+			if v.Line <= 0 {
+				v.Line = 1
+			}
+			if v.Message == "" {
+				v.Message = "violation"
+			}
+			if v.FixHint == "" {
+				if rule.FixHint != "" {
+					v.FixHint = rule.FixHint
+				} else {
+					v.FixHint = defaultFix
+				}
+			}
+		}
+	}
+}
+
+func writeChecklistFile(workspace string) {
+	items := []string{
+		"Boundary rules (contracts-only / no-leak)",
+		"BFF mandatory + wrapper enforcement + policy call",
+		"Registry correctness + ID namespaces",
+		"Atomic ingestion checks",
+		"Evidence signing checks",
+		"UI registry coverage",
+		"Dealer LLID contract + UI LLID display enforcement",
+		"Phase 1-4 rule groups",
+	}
+	path := filepath.Join(workspace, ".b2b", "checklist.json")
+	_ = support.WriteJSONAtomic(path, map[string]interface{}{
+		"generatedAtUtc": time.Now().UTC().Format(time.RFC3339),
+		"items":          items,
+	})
 }

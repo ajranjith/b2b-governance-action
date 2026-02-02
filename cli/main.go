@@ -192,7 +192,7 @@ func main() {
 		return
 	}
 	if setupRun {
-		runSetup()
+		runSetup(filteredArgs)
 		return
 	}
 	if rollback {
@@ -238,14 +238,50 @@ func main() {
 			os.Exit(1)
 		}
 
-	case "verify":
-		runVerify()
+	case "setup":
+		runSetup(filteredArgs[1:])
+
+	case "target":
+		runTargetCommand(filteredArgs[1:])
+
+	case "classify":
+		runClassifyCommand(filteredArgs[1:])
+
+	case "detect-agents":
+		runDetectAgentsCommand()
+
+	case "connect-agent":
+		runConnectAgentsCommand(filteredArgs[1:])
+
+	case "validate-agent":
+		runValidateAgentsCommand(filteredArgs[1:])
 
 	case "scan":
-		runScan()
+		runActionCommand("scan", filteredArgs[1:])
+
+	case "verify":
+		runActionCommand("verify", filteredArgs[1:])
+
+	case "watch":
+		runActionCommand("watch", filteredArgs[1:])
+
+	case "shadow":
+		runActionCommand("shadow", filteredArgs[1:])
+
+	case "fix":
+		runActionCommand("fix", filteredArgs[1:])
+
+	case "fix-loop":
+		runActionCommand("fix-loop", filteredArgs[1:])
+
+	case "support-bundle":
+		runActionCommand("support-bundle", filteredArgs[1:])
+
+	case "rollback":
+		runActionCommand("rollback", filteredArgs[1:])
 
 	case "doctor":
-		runDoctor()
+		runActionCommand("doctor", filteredArgs[1:])
 
 	case "--help", "-h", "help":
 		printUsage()
@@ -261,21 +297,31 @@ func printUsage() {
 	fmt.Println(`GRES B2B CLI - MCP Bridge for AI Agent Governance
 
 Usage:
-  gres-b2b --version              Show version information
-  gres-b2b --config <path>        Use specific config file (optional override)
-  gres-b2b --verify-cert <path>   Verify a signed certificate
+  gres-b2b --version                       Show version information
+  gres-b2b --config <path>                 Use specific config file (optional override)
+  gres-b2b --verify-cert <path>            Verify a signed certificate
   gres-b2b --ingest-admin [in] [locked] [--resume]  Atomic ingest from incoming to locked
-  gres-b2b --watch <path>         Watch and rescan on changes
-  gres-b2b --shadow --vectors <file.yml> <repoRoot>  Run shadow parity
-  gres-b2b --fix [--dry-run]      Auto-heal structural issues
-  gres-b2b --support-bundle <repoRoot>  Create support bundle zip
-  gres-b2b --setup               Run onboarding setup/resume
-  gres-b2b mcp serve              Start MCP server (JSON-RPC 2.0 over stdio)
-  gres-b2b mcp selftest           Run MCP handshake self-test
-  gres-b2b scan                   Run governance scan (Phase 1)
-  gres-b2b verify                 Run governance verify with gating
-  gres-b2b doctor                 Run prerequisite checks
-  gres-b2b --help                 Show this help message
+
+  gres-b2b setup [--non-interactive ...]   Run setup + connect + run flow
+  gres-b2b target --target <path> | --repo <url> [--ref <ref>] [--subdir <path>]
+  gres-b2b classify --mode greenfield|brownfield
+  gres-b2b detect-agents                   Detect installed AI agents
+  gres-b2b connect-agent --client <name> | --all [--config <path>] [--bin <path>]
+  gres-b2b validate-agent --client <name> | --all [--config <path>] [--bin <path>]
+
+  gres-b2b scan                            Run governance scan
+  gres-b2b verify                          Run governance verify
+  gres-b2b watch [--watch <path>]          Watch and rescan on changes
+  gres-b2b shadow --vectors <file.yml>     Run shadow parity
+  gres-b2b fix --dry-run|--apply           Auto-heal structural issues
+  gres-b2b fix-loop --max-fix-attempts <n> Scan -> Fix -> Rescan loop
+  gres-b2b support-bundle <repoRoot>       Create support bundle zip
+  gres-b2b rollback --latest-green | --to <timestamp>
+  gres-b2b doctor                          Run prerequisite checks
+
+  gres-b2b mcp serve                       Start MCP server (JSON-RPC 2.0 over stdio)
+  gres-b2b mcp selftest                    Run MCP handshake self-test
+  gres-b2b --help                          Show this help message
 
 Config Source:
   - Built-in defaults (no external file required)
@@ -477,6 +523,43 @@ func handleRequest(req *JSONRPCRequest) {
 						"required": []string{"action"},
 					},
 				},
+				{
+					"name":        "get_scan_results",
+					"description": "Return current report.json summary and violations",
+					"inputSchema": map[string]interface{}{
+						"type":       "object",
+						"properties": map[string]interface{}{},
+					},
+				},
+				{
+					"name":        "apply_fixes",
+					"description": "Generate or apply fix plan",
+					"inputSchema": map[string]interface{}{
+						"type": "object",
+						"properties": map[string]interface{}{
+							"mode": map[string]interface{}{
+								"type":        "string",
+								"description": "dry-run or apply",
+							},
+							"maxFixes": map[string]interface{}{
+								"type":        "integer",
+								"description": "optional limit",
+							},
+							"ruleIds": map[string]interface{}{
+								"type":  "array",
+								"items": map[string]interface{}{"type": "string"},
+							},
+						},
+					},
+				},
+				{
+					"name":        "rescan",
+					"description": "Run scan again and return updated status",
+					"inputSchema": map[string]interface{}{
+						"type":       "object",
+						"properties": map[string]interface{}{},
+					},
+				},
 			},
 		})
 
@@ -502,6 +585,16 @@ func handleRequest(req *JSONRPCRequest) {
 					},
 				},
 			})
+		case "get_scan_results":
+			result := mcpGetScanResults()
+			sendResult(req.ID, result)
+		case "apply_fixes":
+			mode, _ := params.Arguments["mode"].(string)
+			result := mcpApplyFixes(mode)
+			sendResult(req.ID, result)
+		case "rescan":
+			result := mcpRescan()
+			sendResult(req.ID, result)
 		default:
 			sendError(req.ID, -32601, "Method not found", fmt.Sprintf("Unknown tool: %s", params.Name))
 		}
@@ -603,4 +696,64 @@ func runDoctor() {
 	if report.Status != "OK" {
 		os.Exit(1)
 	}
+}
+
+func mcpGetScanResults() map[string]interface{} {
+	path := filepath.Join(config.Paths.WorkspaceRoot, ".b2b", "report.json")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return map[string]interface{}{
+			"content": []map[string]interface{}{{"type": "text", "text": fmt.Sprintf("ERROR: %v", err)}},
+		}
+	}
+	return map[string]interface{}{
+		"content": []map[string]interface{}{{"type": "text", "text": string(data)}},
+	}
+}
+
+func mcpApplyFixes(mode string) map[string]interface{} {
+	dryRun := true
+	if strings.ToLower(mode) == "apply" {
+		dryRun = false
+	}
+	withStdoutSilenced(func() { runFix(dryRun) })
+	plan := filepath.Join(config.Paths.WorkspaceRoot, ".b2b", "fix-plan.json")
+	patch := filepath.Join(config.Paths.WorkspaceRoot, ".b2b", "fix.patch")
+	return map[string]interface{}{
+		"content": []map[string]interface{}{{
+			"type": "text",
+			"text": fmt.Sprintf("fix-plan=%s\nfix-patch=%s", plan, patch),
+		}},
+	}
+}
+
+func mcpRescan() map[string]interface{} {
+	withStdoutSilenced(func() { runScan() })
+	path := filepath.Join(config.Paths.WorkspaceRoot, ".b2b", "report.json")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return map[string]interface{}{
+			"content": []map[string]interface{}{{"type": "text", "text": fmt.Sprintf("ERROR: %v", err)}},
+		}
+	}
+	return map[string]interface{}{
+		"content": []map[string]interface{}{{"type": "text", "text": string(data)}},
+	}
+}
+
+func withStdoutSilenced(fn func()) {
+	devNull := "NUL"
+	if runtime.GOOS != "windows" {
+		devNull = "/dev/null"
+	}
+	f, err := os.OpenFile(devNull, os.O_WRONLY, 0o644)
+	if err != nil {
+		fn()
+		return
+	}
+	defer f.Close()
+	old := os.Stdout
+	os.Stdout = f
+	defer func() { os.Stdout = old }()
+	fn()
 }

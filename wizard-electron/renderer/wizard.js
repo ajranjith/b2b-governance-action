@@ -2,25 +2,25 @@
  * GRES B2B Setup Wizard - ID-based State Machine Controller
  *
  * Section-based architecture with gate tests:
- * - Each section has a stable ID (WZ-001 to WZ-010)
+ * - Each section has a stable ID (S1 to WZ-010)
  * - "Next" is disabled until section test passes
- * - Preflight (WZ-001) runs immediately on start
+ * - Preflight (S1) runs immediately on start
  * - All transitions logged to ndjson
  *
  * Sections:
- * WZ-001: Preflight (OS/arch, permissions)
- * WZ-002: Agent Detection
- * WZ-003: Config Merge
- * WZ-004: Install Binary
- * WZ-005: Binary Proof
- * WZ-006: MCP Selftest
- * WZ-007: Restart Check
+ * S1: Preflight (OS/arch, permissions)
+ * S2: Agent Detection
+ * S3: Config Merge
+ * S3: Install Binary
+ * S4: Binary Proof
+ * S5: MCP Selftest
+ * S4: Restart Check
  * WZ-008-010: Scan (optional)
  */
 
 const wizard = {
   currentStep: "preflight",
-  steps: ["preflight", "welcome", "detect", "install", "zombie", "verify", "success"],
+  steps: ["preflight", "welcome", "detect", "install", "zombie", "verify", "scanfix", "success"],
   selectedAgents: [],
   detectedAgents: [],
   sectionResults: new Map(),
@@ -28,6 +28,8 @@ const wizard = {
     version: "",
     binaryPath: "",
     installDir: "",
+    scanTarget: "",
+    mode: "brownfield",
   },
 
   // ========================================================================
@@ -41,9 +43,9 @@ const wizard = {
       // Initialize wizard state machine
       await window.gres.wizard.initialize();
 
-      // Run preflight (WZ-001) - must pass before proceeding
+      // Run preflight (S1) - must pass before proceeding
       const preflightResult = await window.gres.wizard.preflight();
-      this.sectionResults.set("WZ-001", preflightResult);
+      this.sectionResults.set("S1", preflightResult);
 
       if (!preflightResult.pass) {
         this.showPreflightError(preflightResult);
@@ -53,6 +55,7 @@ const wizard = {
       // Preflight passed - show welcome
       await this.sleep(500);
       this.showStep("welcome");
+      await this.loadRecentTarget();
 
     } catch (err) {
       this.showPreflightError({
@@ -69,7 +72,7 @@ const wizard = {
     const retryBtn = document.getElementById("btnPreflightRetry");
 
     statusEl.innerHTML = `
-      <div class="section-badge error">WZ-001 FAILED</div>
+      <div class="section-badge error">S1 FAILED</div>
       <div class="error-message">${result.message}</div>
     `;
 
@@ -82,7 +85,7 @@ const wizard = {
 
   async retryPreflight() {
     document.getElementById("preflightStatus").innerHTML = `
-      <div class="section-badge">WZ-001</div>
+      <div class="section-badge">S1</div>
       <div>Running preflight checks...</div>
     `;
     document.getElementById("preflightDetail").innerHTML = "";
@@ -98,7 +101,255 @@ const wizard = {
     }
   },
 
-  // ========================================================================
+  
+  async runScan() {
+    const target = this.data.scanTarget || "";
+    const args = ["scan"];
+    if (target) {
+      args.push("--target", target);
+    }
+    await window.gres.cli.run(args, target || undefined);
+    await this.refreshReport();
+  },
+
+  async runFixLoop() {
+    const target = this.data.scanTarget || "";
+    const args = ["fix-loop", "--max-fix-attempts", "3"];
+    if (target) {
+      args.push("--target", target);
+    }
+    await window.gres.cli.run(args, target || undefined);
+    await this.refreshReport();
+  },
+
+  async runRescan() {
+    const target = this.data.scanTarget || "";
+    const args = ["scan"];
+    if (target) {
+      args.push("--target", target);
+    }
+    await window.gres.cli.run(args, target || undefined);
+    await this.refreshReport();
+  },
+
+  async openHUD() {
+    const target = this.data.scanTarget || "";
+    if (!target) return;
+    const hudPath = target + "\\.b2b\\report.html";
+    window.gres.util.openPath(hudPath);
+  },
+
+  async selfCheckSetup() {
+    const statusEl = document.getElementById("targetStatus");
+    const badge = document.getElementById("setupCheckBadge");
+    const target = this.data.scanTarget || document.getElementById("targetPath").value.trim();
+    if (!target) {
+      if (statusEl) statusEl.textContent = "Set a target before self-check.";
+      if (badge) badge.style.display = "none";
+      return;
+    }
+    const setupPath = target + "\\.b2b\\setup.json";
+    const res = await window.gres.cli.readJSON(setupPath);
+    if (res.success && res.data && res.data.target) {
+      if (badge) {
+        badge.style.display = "inline-block";
+        badge.className = "section-badge success";
+        badge.textContent = "SAVED";
+      }
+      if (statusEl) statusEl.textContent = "setup.json verified";
+    } else {
+      if (badge) {
+        badge.style.display = "inline-block";
+        badge.className = "section-badge error";
+        badge.textContent = "MISSING";
+      }
+      if (statusEl) statusEl.textContent = res.error || "setup.json not found";
+    }
+  },
+
+
+  async setTarget() {
+    const targetPath = document.getElementById("targetPath").value.trim();
+    const repoUrl = document.getElementById("repoUrl").value.trim();
+    const ref = document.getElementById("repoRef").value.trim();
+    const subdir = document.getElementById("repoSubdir").value.trim();
+    const statusEl = document.getElementById("targetStatus");
+
+    let args = ["target"];
+    if (repoUrl) {
+      args.push("--repo", repoUrl);
+      if (ref) args.push("--ref", ref);
+      if (subdir) args.push("--subdir", subdir);
+    } else if (targetPath) {
+      args.push("--target", targetPath);
+    } else {
+      statusEl.textContent = "Please provide a local path or repo URL.";
+      return;
+    }
+
+    const home = await window.gres.util.getHomeDir();
+    const res = await window.gres.cli.run(args, home || targetPath || undefined);
+    if (!res.success) {
+      statusEl.textContent = res.stderr || res.error || "Target selection failed";
+      return;
+    }
+
+    if (repoUrl) {
+      const wsPath = (await window.gres.cli.readJSON(`\\.b2b\\workspaces.json`));
+      if (wsPath.success && wsPath.data && wsPath.data.length) {
+        const latest = wsPath.data[wsPath.data.length - 1];
+        this.data.scanTarget = latest.path || "";
+      }
+    } else {
+      this.data.scanTarget = targetPath;
+    }
+
+    statusEl.textContent = this.data.scanTarget ? `Target set: ${this.data.scanTarget}` : "Target set.";
+    statusEl.classList.add("text-success");
+    if (this.data.scanTarget) {
+      await this.writeSetupToRepo(this.data.scanTarget, {
+        type: repoUrl ? "git" : "local",
+        path: targetPath || "",
+        repoUrl: repoUrl || "",
+        ref: ref || "",
+        subdir: subdir || "",
+        workspaceRoot: this.data.scanTarget,
+      });
+      statusEl.textContent += " (saved)";
+    }
+  },
+
+  async classifyProject() {
+    const modeEl = document.getElementById("projectMode");
+    const mode = modeEl ? modeEl.value : "brownfield";
+    this.data.mode = mode;
+    const statusEl = document.getElementById("targetStatus");
+    if (!this.data.scanTarget) {
+      statusEl.textContent = "Set a target before classify.";
+      return;
+    }
+    const args = ["classify", "--mode", mode, "--target", this.data.scanTarget];
+    const home = await window.gres.util.getHomeDir();
+    const res = await window.gres.cli.run(args, home || this.data.scanTarget);
+    if (!res.success) {
+      statusEl.textContent = res.stderr || res.error || "Classify failed";
+      return;
+    }
+    statusEl.textContent = `Classified: ${mode} (saved)`;
+    statusEl.classList.add("text-success");
+    await this.writeSetupToRepo(this.data.scanTarget, {
+      type: "local",
+      path: this.data.scanTarget,
+      repoUrl: "",
+      ref: "",
+      subdir: "",
+      workspaceRoot: this.data.scanTarget,
+    });
+  },
+
+  async refreshReport() {
+    if (!this.data.scanTarget) return;
+    const reportPath = this.data.scanTarget + "\\.b2b\\report.json";
+    const res = await window.gres.cli.readJSON(reportPath);
+    if (!res.success) {
+      const el = document.getElementById("scanFindings");
+      if (el) el.textContent = res.error || "No report available";
+      return;
+    }
+
+    const rep = res.data || {};
+    document.getElementById("phase1Status").textContent = rep.phase1Status || "-";
+    document.getElementById("phase2Status").textContent = rep.phase2Status || "-";
+    document.getElementById("phase3Status").textContent = rep.phase3Status || "-";
+    document.getElementById("phase4Status").textContent = rep.phase4Status || "-";
+
+    const counts = { red: 0, amber: 0, green: 0 };
+    (rep.rules || []).forEach((r) => {
+      if (r.status === "FAIL") counts.red += 1;
+      if (r.status === "WARN") counts.amber += 1;
+      if (r.status === "PASS") counts.green += 1;
+    });
+    document.getElementById("redCount").textContent = counts.red;
+    document.getElementById("amberCount").textContent = counts.amber;
+    document.getElementById("greenCount").textContent = counts.green;
+
+    const findingsEl = document.getElementById("scanFindings");
+    const topRulesEl = document.getElementById("topRules");
+    const fails = (rep.rules || []).filter((r) => r.status === "FAIL");
+    if (findingsEl) {
+      if (fails.length === 0) {
+        findingsEl.textContent = "All checks passing.";
+      } else {
+        findingsEl.innerHTML = fails.slice(0, 5).map((f) => `? ${f.ruleId}: ${f.fixHint || "Fix required"}`).join("<br/>");
+      }
+    }
+    if (topRulesEl) {
+      const top = fails.slice(0, 10);
+      if (top.length === 0) {
+        topRulesEl.textContent = "";
+      } else {
+        topRulesEl.innerHTML = `<strong>Top Failing Rules</strong><br/>` + top.map((f) => `${f.ruleId} (${f.severity || ""})`).join("<br/>");
+      }
+    }
+  },
+
+
+  async loadRecentTarget() {
+    try {
+      const home = await window.gres.util.getHomeDir();
+      if (!home) return;
+      const setupPath = home + "\\.b2b\\setup.json";
+      const workspacesPath = home + "\\.b2b\\workspaces.json";
+
+      const setupRes = await window.gres.cli.readJSON(setupPath);
+      if (setupRes.success && setupRes.data && setupRes.data.target) {
+        const t = setupRes.data.target;
+        if (t.path) document.getElementById("targetPath").value = t.path;
+        if (t.repoUrl) document.getElementById("repoUrl").value = t.repoUrl;
+        if (t.ref) document.getElementById("repoRef").value = t.ref;
+        if (t.subdir) document.getElementById("repoSubdir").value = t.subdir;
+        if (setupRes.data.mode) document.getElementById("projectMode").value = setupRes.data.mode;
+        if (t.workspaceRoot) this.data.scanTarget = t.workspaceRoot;
+      }
+
+      const wsRes = await window.gres.cli.readJSON(workspacesPath);
+      if (!this.data.scanTarget && wsRes.success && Array.isArray(wsRes.data) && wsRes.data.length) {
+        const latest = wsRes.data[wsRes.data.length - 1];
+        if (latest.path) {
+          this.data.scanTarget = latest.path;
+          document.getElementById("targetPath").value = latest.path;
+        }
+      }
+
+      if (this.data.scanTarget) {
+        const statusEl = document.getElementById("targetStatus");
+        if (statusEl) statusEl.textContent = `Target set: ${this.data.scanTarget}`;
+      }
+    } catch (_) {
+      // ignore
+    }
+  },
+  async writeSetupToRepo(repoRoot, targetInfo) {
+    if (!repoRoot) return;
+    const setupPath = repoRoot + "\\.b2b\\setup.json";
+    const payload = {
+      version: "1.0",
+      status: "IN_PROGRESS",
+      currentStep: "S1",
+      stepsCompleted: ["S1"],
+      target: targetInfo,
+      mode: this.data.mode || "brownfield",
+      updatedAtUtc: new Date().toISOString(),
+      resumeAvailable: true,
+    };
+    const res = await window.gres.util.writeJSON(setupPath, payload);
+    if (!res?.success) {
+      const statusEl = document.getElementById("targetStatus");
+      if (statusEl) statusEl.textContent = res?.error || "Failed to persist setup.json";
+    }
+  },
+
+// ========================================================================
   // Navigation with Gate Tests
   // ========================================================================
   showStep(stepId) {
@@ -113,7 +364,15 @@ const wizard = {
     }
   },
 
-  back() {
+  
+  next() {
+    const currentIndex = this.steps.indexOf(this.currentStep);
+    if (currentIndex >= 0 && currentIndex < this.steps.length - 1) {
+      this.showStep(this.steps[currentIndex + 1]);
+    }
+  },
+
+back() {
     const currentIndex = this.steps.indexOf(this.currentStep);
     if (currentIndex > 0) {
       this.showStep(this.steps[currentIndex - 1]);
@@ -129,7 +388,7 @@ const wizard = {
   },
 
   // ========================================================================
-  // Step 2: Agent Detection (WZ-002)
+  // Step 2: Agent Detection (S2)
   // ========================================================================
   async runDetection() {
     const agentList = document.getElementById("agentList");
@@ -138,7 +397,7 @@ const wizard = {
     const btnSyncAll = document.getElementById("btnSyncAll");
     const sectionBadge = document.getElementById("detectSectionBadge");
 
-    if (sectionBadge) sectionBadge.textContent = "WZ-002";
+    if (sectionBadge) sectionBadge.textContent = "S2";
 
     agentList.innerHTML = '<div class="note">Scanning for config files...</div>';
     detectStatus.textContent = "Checking Codex TOML, Claude JSON, Cursor JSON, Windsurf JSON...";
@@ -146,9 +405,9 @@ const wizard = {
     if (btnSyncAll) btnSyncAll.style.display = "none";
 
     try {
-      // Run WZ-002 through state machine
-      const result = await window.gres.wizard.runSectionById("WZ-002");
-      this.sectionResults.set("WZ-002", result);
+      // Run S2 through state machine
+      const result = await window.gres.wizard.runSectionById("S2");
+      this.sectionResults.set("S2", result);
 
       // Get context to access detected agents
       const ctx = await window.gres.wizard.getContext();
@@ -224,9 +483,9 @@ const wizard = {
       item.classList.toggle("selected", checkbox.checked);
     });
 
-    // Gate test: can only advance if at least one agent selected AND WZ-002 passed
+    // Gate test: can only advance if at least one agent selected AND S2 passed
     const btnNext = document.getElementById("btnDetectNext");
-    const wz002Result = this.sectionResults.get("WZ-002");
+    const wz002Result = this.sectionResults.get("S2");
     btnNext.disabled = this.selectedAgents.length === 0 || !wz002Result?.pass;
   },
 
@@ -249,7 +508,7 @@ const wizard = {
   },
 
   // ========================================================================
-  // Step 3: Installation (WZ-003, WZ-004, WZ-005)
+  // Step 3: Installation (S3, S3, S4)
   // ========================================================================
   async runInstallation() {
     const progressFill = document.getElementById("installProgress");
@@ -288,18 +547,18 @@ const wizard = {
       this.data.installDir = paths.installDir;
       this.data.binaryPath = paths.binaryPath;
 
-      // WZ-004: Install Binary
-      if (sectionBadge) sectionBadge.textContent = "WZ-004";
+      // S3: Install Binary
+      if (sectionBadge) sectionBadge.textContent = "S3";
       setStepStatus("checksum", "active", "Installing binary...");
-      setProgress(5, "Installing gres-b2b...", "WZ-004");
+      setProgress(5, "Installing gres-b2b...", "S3");
 
       window.gres.wizard.onProgress((percent) => {
-        setProgress(5 + Math.floor(percent * 0.35), `Installing... ${percent}%`, "WZ-004");
+        setProgress(5 + Math.floor(percent * 0.35), `Installing... ${percent}%`, "S3");
       });
 
-      const wz004Result = await window.gres.wizard.runSectionById("WZ-004");
+      const wz004Result = await window.gres.wizard.runSectionById("S3");
       window.gres.wizard.offProgress();
-      this.sectionResults.set("WZ-004", wz004Result);
+      this.sectionResults.set("S3", wz004Result);
 
       if (!wz004Result.pass) {
         throw new Error(wz004Result.message || "Installation failed");
@@ -309,30 +568,30 @@ const wizard = {
       this.data.version = ctx.downloadResult?.version || "unknown";
       setStepStatus("checksum", "success", `v${this.data.version}`);
 
-      // WZ-005: Binary Proof
-      if (sectionBadge) sectionBadge.textContent = "WZ-005";
+      // S4: Binary Proof
+      if (sectionBadge) sectionBadge.textContent = "S4";
       setStepStatus("path", "active", "Verifying binary...");
-      setProgress(50, "Running binary verification...", "WZ-005");
+      setProgress(50, "Running binary verification...", "S4");
 
-      const wz005Result = await window.gres.wizard.runSectionById("WZ-005");
-      this.sectionResults.set("WZ-005", wz005Result);
+      const wz005Result = await window.gres.wizard.runSectionById("S4");
+      this.sectionResults.set("S4", wz005Result);
 
       if (!wz005Result.pass) {
         throw new Error(wz005Result.message || "Binary verification failed");
       }
       setStepStatus("path", "success", "Verified");
 
-      // WZ-003: Config Merge
-      if (sectionBadge) sectionBadge.textContent = "WZ-003";
+      // S3: Config Merge
+      if (sectionBadge) sectionBadge.textContent = "S3";
       setStepStatus("config", "active", "Configuring agents...");
-      setProgress(70, "Writing agent configurations...", "WZ-003");
+      setProgress(70, "Writing agent configurations...", "S3");
 
       let successCount = 0;
       let errorCount = 0;
 
       for (const agent of this.selectedAgents) {
         await window.gres.wizard.setContext("selectedAgent", agent);
-        const configResult = await window.gres.wizard.runSectionById("WZ-003");
+        const configResult = await window.gres.wizard.runSectionById("S3");
 
         if (configResult.pass) {
           successCount++;
@@ -345,7 +604,7 @@ const wizard = {
         }
       }
 
-      this.sectionResults.set("WZ-003", { pass: successCount > 0, successCount, errorCount });
+      this.sectionResults.set("S3", { pass: successCount > 0, successCount, errorCount });
 
       if (errorCount > 0 && successCount === 0) {
         throw new Error(`Failed to configure all ${errorCount} agent(s)`);
@@ -385,7 +644,7 @@ const wizard = {
       overlay.className = "dialog-overlay";
       overlay.innerHTML = `
         <div class="repair-dialog">
-          <h3>WZ-003 Config Parse Error</h3>
+          <h3>S3 Config Parse Error</h3>
           <p><strong>${agent.name}</strong> config could not be parsed:</p>
           <div class="error-box" style="font-size: 0.75rem; max-height: 60px; overflow: auto;">${error}</div>
           <p style="margin-top: 12px;">What would you like to do?</p>
@@ -414,12 +673,12 @@ const wizard = {
   },
 
   // ========================================================================
-  // Step 4: Zombie Guard (WZ-007)
+  // Step 4: Zombie Guard (S4)
   // ========================================================================
   async checkForRunningAgents() {
-    // Run WZ-007 through state machine
-    const wz007Result = await window.gres.wizard.runSectionById("WZ-007");
-    this.sectionResults.set("WZ-007", wz007Result);
+    // Run S4 through state machine
+    const wz007Result = await window.gres.wizard.runSectionById("S4");
+    this.sectionResults.set("S4", wz007Result);
 
     const ctx = await window.gres.wizard.getContext();
     const restartCheck = ctx.restartCheckResult;
@@ -437,7 +696,7 @@ const wizard = {
       document.getElementById("zombieProcess").textContent = running.processes?.join(", ") || running.agentName;
 
       const sectionBadge = document.getElementById("zombieSectionBadge");
-      if (sectionBadge) sectionBadge.textContent = "WZ-007";
+      if (sectionBadge) sectionBadge.textContent = "S4";
 
       const restartEl = document.getElementById("zombieRestart");
       if (restartEl) {
@@ -449,11 +708,11 @@ const wizard = {
       const skipBtn = document.getElementById("btnSkipZombie");
 
       if (running.isCodex) {
-        statusEl.innerHTML = `<span class="section-badge">WZ-007</span> Restart your terminal/CLI session to apply changes.`;
+        statusEl.innerHTML = `<span class="section-badge">S4</span> Restart your terminal/CLI session to apply changes.`;
         if (forceBtn) forceBtn.style.display = "none";
         if (skipBtn) skipBtn.style.display = "inline-block";
       } else {
-        statusEl.innerHTML = `<span class="section-badge">WZ-007</span> Waiting for process to exit...`;
+        statusEl.innerHTML = `<span class="section-badge">S4</span> Waiting for process to exit...`;
         if (forceBtn) forceBtn.style.display = "inline-block";
         if (skipBtn) skipBtn.style.display = "none";
       }
@@ -473,7 +732,7 @@ const wizard = {
     const statusEl = document.getElementById("zombieStatus");
 
     window.gres.zombie.onStatus((status) => {
-      statusEl.innerHTML = `<span class="section-badge">WZ-007</span> ${status.message || "Checking..."}`;
+      statusEl.innerHTML = `<span class="section-badge">S4</span> ${status.message || "Checking..."}`;
     });
 
     try {
@@ -486,58 +745,58 @@ const wizard = {
       window.gres.zombie.offStatus();
 
       if (result.exited) {
-        statusEl.innerHTML = `<span class="section-badge success">WZ-007 PASSED</span> Process exited. Proceeding...`;
-        this.sectionResults.set("WZ-007", { pass: true, code: "OK" });
+        statusEl.innerHTML = `<span class="section-badge success">S4 PASSED</span> Process exited. Proceeding...`;
+        this.sectionResults.set("S4", { pass: true, code: "OK" });
         await this.sleep(1000);
         this.showStep("verify");
         this.runVerification();
       } else if (result.timeout) {
-        statusEl.innerHTML = `<span class="section-badge error">WZ-007</span> Timeout. Use Force Close or close manually.`;
+        statusEl.innerHTML = `<span class="section-badge error">S4</span> Timeout. Use Force Close or close manually.`;
       }
     } catch (err) {
       window.gres.zombie.offStatus();
-      statusEl.innerHTML = `<span class="section-badge error">WZ-007 ERROR</span> ${err.message}`;
+      statusEl.innerHTML = `<span class="section-badge error">S4 ERROR</span> ${err.message}`;
     }
   },
 
   skipZombie() {
-    this.sectionResults.set("WZ-007", { pass: true, code: "OK_SKIPPED" });
+    this.sectionResults.set("S4", { pass: true, code: "OK_SKIPPED" });
     this.showStep("verify");
     this.runVerification();
   },
 
   async forceKill() {
     const statusEl = document.getElementById("zombieStatus");
-    statusEl.innerHTML = `<span class="section-badge">WZ-007</span> Force closing...`;
+    statusEl.innerHTML = `<span class="section-badge">S4</span> Force closing...`;
 
     try {
       const result = await window.gres.zombie.forceKill(this.currentZombieAgent.agentName);
 
       if (result.success) {
-        statusEl.innerHTML = `<span class="section-badge success">WZ-007 PASSED</span> Process closed. Proceeding...`;
-        this.sectionResults.set("WZ-007", { pass: true, code: "OK" });
+        statusEl.innerHTML = `<span class="section-badge success">S4 PASSED</span> Process closed. Proceeding...`;
+        this.sectionResults.set("S4", { pass: true, code: "OK" });
         await this.sleep(1000);
         this.showStep("verify");
         this.runVerification();
       } else {
-        statusEl.innerHTML = `<span class="section-badge error">WZ-007</span> ${result.error || "Failed to close process"}`;
+        statusEl.innerHTML = `<span class="section-badge error">S4</span> ${result.error || "Failed to close process"}`;
       }
     } catch (err) {
-      statusEl.innerHTML = `<span class="section-badge error">WZ-007 ERROR</span> ${err.message}`;
+      statusEl.innerHTML = `<span class="section-badge error">S4 ERROR</span> ${err.message}`;
     }
   },
 
   // ========================================================================
-  // Step 5: Verification (WZ-006 MCP Selftest)
+  // Step 5: Verification (S5 MCP Selftest)
   // ========================================================================
   async runVerification() {
     const sectionBadge = document.getElementById("verifySectionBadge");
-    if (sectionBadge) sectionBadge.textContent = "WZ-006";
+    if (sectionBadge) sectionBadge.textContent = "S5";
 
     const tests = [
-      { id: "binary", sectionId: "WZ-005", name: "Binary Version", fn: () => window.gres.verify.binaryVersion() },
+      { id: "binary", sectionId: "S4", name: "Binary Version", fn: () => window.gres.verify.binaryVersion() },
       { id: "path", sectionId: null, name: "PATH Check", fn: () => window.gres.verify.pathWhere() },
-      { id: "mcp", sectionId: "WZ-006", name: "MCP Selftest", fn: () => window.gres.wizard.runSectionById("WZ-006") },
+      { id: "mcp", sectionId: "S5", name: "MCP Selftest", fn: () => window.gres.wizard.runSectionById("S5") },
     ];
 
     let allPassed = true;
@@ -602,8 +861,8 @@ const wizard = {
           All verification tests passed!
         </div>
       `;
-      await this.sleep(1500);
-      this.showSuccess();
+      await this.sleep(800);
+      this.showStep("scanfix");
     } else {
       resultEl.innerHTML = `
         <div class="note text-error" style="margin-top: 20px;">

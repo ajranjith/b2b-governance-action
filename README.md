@@ -31,7 +31,9 @@ Single ZIP with all supported binaries and documentation.
 **Installation (Windows example):**
 1. Extract to `%LOCALAPPDATA%\\Programs\\gres-b2b\\`
 2. (Optional) Add `%LOCALAPPDATA%\\Programs\\gres-b2b\\bin\\windows-amd64` to PATH
-3. Run `gres-b2b.exe doctor` and configure MCP using the snippets in [docs/INSTALL.md](docs/INSTALL.md)
+3. Run `gres-b2b.exe doctor` (optional) or the unified setup flow: `gres-b2b.exe setup`
+   - Non-interactive: `gres-b2b.exe setup --non-interactive --target <path> --mode brownfield --client cursor --action verify`
+   - MCP snippets and details: [docs/INSTALL.md](docs/INSTALL.md)
 
 ### Option 2 - CLI Setup Guide (Manual)
 

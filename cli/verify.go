@@ -472,6 +472,10 @@ func writeJUnit(workspaceRoot string, scanResults *ScanResults, verifyResult *Ve
 // runVerify orchestrates the full verify pipeline
 // ---------------------------------------------------------------------------
 
+func shouldExit() bool {
+	return os.Getenv("GRES_NO_EXIT") != "1"
+}
+
 func runVerify() {
 	workspace := config.Paths.WorkspaceRoot
 
@@ -479,7 +483,10 @@ func runVerify() {
 	verifyCfg, err := loadVerifyConfig(workspace)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
-		os.Exit(1)
+		if shouldExit() {
+			os.Exit(1)
+		}
+		return
 	}
 
 	// Load scan results
@@ -487,10 +494,16 @@ func runVerify() {
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			fmt.Fprintf(os.Stderr, "ERROR: Scan results missing: expected %s. Run `gres-b2b scan` or ensure pipeline produces it.\n", filepath.Join(workspace, ".b2b", "results.json"))
-			os.Exit(1)
+			if shouldExit() {
+				os.Exit(1)
+			}
+			return
 		}
 		fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
-		os.Exit(1)
+		if shouldExit() {
+			os.Exit(1)
+		}
+		return
 	}
 
 	// Evaluate gating
@@ -545,6 +558,8 @@ func runVerify() {
 	printHUD(result)
 
 	if !result.Pass {
-		os.Exit(1)
+		if shouldExit() {
+			os.Exit(1)
+		}
 	}
 }

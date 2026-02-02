@@ -8,6 +8,7 @@ const mcp = require("./services/mcp");
 const download = require("./services/download");
 const pathService = require("./services/path");
 const verify = require("./services/verify");
+const cli = require("./services/cli");
 const scan = require("./services/scan");
 const detect = require("./services/detect");
 const config = require("./services/config");
@@ -255,6 +256,24 @@ ipcMain.handle("verify:doctor", async () => {
   return verify.doctor(config.BINARY_PATH);
 });
 
+
+// ============================================================================
+// CLI Bridge
+// ============================================================================
+
+ipcMain.handle("cli:run", async (_, args, cwd) => {
+  return cli.runCLI(args || [], cwd || process.cwd());
+});
+
+ipcMain.handle("cli:readJSON", async (_, filePath) => {
+  try {
+    const data = fs.readFileSync(filePath, "utf8");
+    return { success: true, data: JSON.parse(data) };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+});
+
 // ============================================================================
 // Phase 6: Scan
 // ============================================================================
@@ -313,6 +332,23 @@ ipcMain.handle("util:openUrl", async (_, url) => {
 ipcMain.handle("util:openPath", async (_, filePath) => {
   shell.showItemInFolder(filePath);
   return { success: true };
+});
+
+ipcMain.handle("util:writeJSON", async (_, filePath, payload) => {
+  try {
+    const dir = path.dirname(filePath);
+    fs.mkdirSync(dir, { recursive: true });
+    const tmpPath = `${filePath}.tmp.${process.pid}`;
+    const content = JSON.stringify(payload, null, 2);
+    const fd = fs.openSync(tmpPath, "w");
+    fs.writeFileSync(fd, content, "utf8");
+    fs.fsyncSync(fd);
+    fs.closeSync(fd);
+    fs.renameSync(tmpPath, filePath);
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
 });
 
 ipcMain.handle("util:getInstallPath", async () => {

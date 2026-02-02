@@ -15,12 +15,12 @@
     </header>
 
     <div class="wizard-content">
-      <!-- Preflight Step (WZ-001) -->
+      <!-- Preflight Step (S1) -->
       <section id="step-preflight" class="step active">
         <div class="step-icon">
           <div class="spinner"></div>
         </div>
-        <h2><span class="section-badge">WZ-001</span> Preflight</h2>
+        <h2><span class="section-badge">S1</span> Preflight</h2>
         <p>Checking system requirements...</p>
         <div id="preflightStatus" class="preflight-status">
           <div class="note">Verifying permissions and directories...</div>
@@ -52,9 +52,9 @@
         </div>
       </section>
 
-      <!-- Step 2: Detect Agents (WZ-002) -->
+      <!-- Step 2: Detect Agents (S2) -->
       <section id="step-detect" class="step">
-        <h2><span class="section-badge" id="detectSectionBadge">WZ-002</span> Detecting AI Agents</h2>
+        <h2><span class="section-badge" id="detectSectionBadge">S2</span> Detecting AI Agents</h2>
         <p>Scanning for config files...</p>
         <div id="agentList" class="agent-list"></div>
         <div id="detectStatus" class="note"></div>
@@ -65,9 +65,9 @@
         </div>
       </section>
 
-      <!-- Step 3: Install (WZ-003, WZ-004, WZ-005) -->
+      <!-- Step 3: Install (WZ-003, S3, WZ-005) -->
       <section id="step-install" class="step">
-        <h2><span class="section-badge" id="installSectionBadge">WZ-004</span> Configuring Environment</h2>
+        <h2><span class="section-badge" id="installSectionBadge">S3</span> Configuring Environment</h2>
         <p>Setting up the GRES B2B bridge...</p>
         <div class="progress-steps" id="installSteps">
           <div class="progress-step" id="step-checksum">
@@ -101,9 +101,9 @@
         </div>
       </section>
 
-      <!-- Step 4: Zombie Guard (WZ-007) -->
+      <!-- Step 4: Zombie Guard (S4) -->
       <section id="step-zombie" class="step">
-        <h2><span class="section-badge" id="zombieSectionBadge">WZ-007</span> Restart Required</h2>
+        <h2><span class="section-badge" id="zombieSectionBadge">S4</span> Restart Required</h2>
         <p>Please close your AI agent to apply changes</p>
         <div class="zombie-alert">
           <h3 id="zombieAgent">Waiting for Agent</h3>
@@ -118,9 +118,9 @@
         </div>
       </section>
 
-      <!-- Step 5: Verify (WZ-006) -->
+      <!-- Step 5: Verify (S5) -->
       <section id="step-verify" class="step">
-        <h2><span class="section-badge" id="verifySectionBadge">WZ-006</span> Verification</h2>
+        <h2><span class="section-badge" id="verifySectionBadge">S5</span> Verification</h2>
         <p>Running self-tests...</p>
         <div class="progress-steps" id="verifySteps">
           <div class="progress-step" id="verify-binary">
@@ -148,14 +148,87 @@
         <div id="verifyResult"></div>
       </section>
 
-      <!-- Step 6: Success -->
+      
+      <!-- Step 6-7: Scan & Fix Loop -->
+      <section id="step-scanfix" class="step">
+        <h2><span class="section-badge" id="scanfixSectionBadge">S6</span> Scan & Fix Loop</h2>
+        <p>Run scan, generate fixes, and rescan until green.</p>
+
+        <div class="card">
+          <h3>Target</h3>
+          <div class="field-row">
+            <label>Local Path</label>
+            <input id="targetPath" type="text" placeholder="C:\repo" />
+          </div>
+          <div class="field-row">
+            <label>Git Repo URL</label>
+            <input id="repoUrl" type="text" placeholder="https://github.com/org/repo.git" />
+          </div>
+          <div class="field-row">
+            <label>Ref</label>
+            <input id="repoRef" type="text" placeholder="main" />
+          </div>
+          <div class="field-row">
+            <label>Subdir</label>
+            <input id="repoSubdir" type="text" placeholder="" />
+          </div>
+          <div class="field-row">
+            <label>Mode</label>
+            <select id="projectMode">
+              <option value="brownfield">Brownfield</option>
+              <option value="greenfield">Greenfield</option>
+            </select>
+          </div>
+          <div class="step-actions">
+            <button class="btn btn-secondary" onclick="wizard.setTarget()">Set Target</button>
+            <button class="btn btn-secondary" onclick="wizard.classifyProject()">Classify</button>
+            <button class="btn btn-secondary" onclick="wizard.selfCheckSetup()">Self-check</button>
+          </div>
+          <div id="targetStatus" class="note">
+            <span id="setupCheckBadge" class="section-badge success" style="display: none; margin-right: 6px;">SAVED</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Report Status</h3>
+          <div class="status-grid">
+            <div class="status-item"><div class="status-label">Phase1</div><div class="status-value" id="phase1Status">-</div></div>
+            <div class="status-item"><div class="status-label">Phase2</div><div class="status-value" id="phase2Status">-</div></div>
+            <div class="status-item"><div class="status-label">Phase3</div><div class="status-value" id="phase3Status">-</div></div>
+            <div class="status-item"><div class="status-label">Phase4</div><div class="status-value" id="phase4Status">-</div></div>
+          </div>
+          <div class="status-grid">
+            <div class="status-item"><div class="status-label">RED</div><div class="status-value" id="redCount">-</div></div>
+            <div class="status-item"><div class="status-label">AMBER</div><div class="status-value" id="amberCount">-</div></div>
+            <div class="status-item"><div class="status-label">GREEN</div><div class="status-value" id="greenCount">-</div></div>
+          </div>
+          <div id="scanFindings" class="note"></div>
+          <div id="topRules" class="note"></div>
+        </div>
+
+        <div class="checklist">
+          <div class="check-item"><span class="check-icon">?</span><span>Scan -> Report (.b2b/report.json)</span></div>
+          <div class="check-item"><span class="check-icon">?</span><span>Fix Plan (.b2b/fix-plan.json, .b2b/fix.patch)</span></div>
+          <div class="check-item"><span class="check-icon">?</span><span>Rescan and refresh HUD</span></div>
+        </div>
+        <div class="step-actions">
+          <button class="btn btn-secondary" onclick="wizard.back()">Back</button>
+          <button class="btn btn-primary" onclick="wizard.runScan()">Run Scan</button>
+          <button class="btn btn-primary" onclick="wizard.runFixLoop()">Run Fix Loop</button>
+          <button class="btn btn-secondary" onclick="wizard.runRescan()">Rescan</button>
+          <button class="btn btn-secondary" onclick="wizard.openHUD()">Open HUD</button>
+          <button class="btn btn-primary" onclick="wizard.next()">Continue</button>
+        </div>
+      </section>
+
+<!-- Step 6: Success -->
       <section id="step-success" class="step">
         <div class="success-ring">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polyline points="20 6 9 17 4 12"/>
           </svg>
         </div>
-        <h2 class="gradient-text">Governance Active</h2>
+        <h2><span class="section-badge">S8</span> Final Verification</h2>
         <p>Your environment is configured and verified</p>
         <div class="status-grid">
           <div class="status-item">
@@ -176,7 +249,7 @@
           </div>
         </div>
         <div id="successNote"></div>
-        <p class="note">A desktop shortcut has been created</p>
+        <p class="note">HUD shortcut will be created</p>
         <div class="step-actions">
           <button class="btn btn-secondary" onclick="wizard.openDocs()">Documentation</button>
           <button class="btn btn-primary" onclick="wizard.launchDashboard()">Launch Dashboard</button>

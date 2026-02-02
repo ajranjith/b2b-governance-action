@@ -9,6 +9,7 @@ import (
 	"time"
 
 	cfgpkg "github.com/ajranjith/b2b-governance-action/cli/internal/config"
+	"github.com/ajranjith/b2b-governance-action/cli/internal/flow"
 )
 
 func TestPhase4VerifyOutputs(t *testing.T) {
@@ -74,6 +75,7 @@ func TestPhase4FailurePayloads(t *testing.T) {
 }
 
 func TestPhase4WatchBasic(t *testing.T) {
+	t.Setenv("GRES_NO_EXIT", "1")
 	tmp := t.TempDir()
 	if err := copyDir(filepath.Join("testdata", "phase4", "watch", "basic"), tmp); err != nil {
 		t.Fatalf("copy fixture: %v", err)
@@ -332,18 +334,24 @@ func TestPhase4SetupResume(t *testing.T) {
 	_ = os.MkdirAll(b2bDir, 0o755)
 	_ = os.WriteFile(filepath.Join(b2bDir, "report.json"), []byte(`{"rules":[]}`), 0o644)
 
-	runSetup()
-	runSetup()
+	t.Setenv("GRES_SKIP_SELFTEST", "1")
+	t.Setenv("USERPROFILE", tmp)
+	t.Setenv("HOME", tmp)
+
+	ctx := flow.Context{Root: tmp, HomeDir: tmp, SkipSelftest: true}
+	opts := flow.Options{Root: tmp, TargetPath: tmp, AllClients: true, ForceAction: true, Mode: "brownfield", Action: flow.Action{Name: "doctor"}}
+	_, _ = flow.Run(ctx, opts, nil)
+	_, _ = flow.Run(ctx, opts, nil)
 
 	data, err := os.ReadFile(filepath.Join(b2bDir, "setup.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	var state setupState
+	var state flow.State
 	if err := json.Unmarshal(data, &state); err != nil {
 		t.Fatal(err)
 	}
-	if state.CurrentStep == 0 {
+	if state.CurrentStep == "" {
 		t.Fatal("expected setup to advance")
 	}
 }

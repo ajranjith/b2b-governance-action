@@ -5,20 +5,41 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 )
 
 // WriteFileAtomic writes bytes to a temp file then renames into place.
+// Ensures data is fsync'd before rename.
 func WriteFileAtomic(path string, data []byte) error {
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
 	tmp := fmt.Sprintf("%s.tmp.%d", path, os.Getpid())
-	if err := os.WriteFile(tmp, data, 0o644); err != nil {
+	f, err := os.OpenFile(tmp, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
+	if err != nil {
+		return err
+	}
+	if _, err := f.Write(data); err != nil {
+		_ = f.Close()
+		_ = os.Remove(tmp)
+		return err
+	}
+	if err := f.Sync(); err != nil {
+		_ = f.Close()
+		_ = os.Remove(tmp)
+		return err
+	}
+	if err := f.Close(); err != nil {
+		_ = os.Remove(tmp)
 		return err
 	}
 	_ = os.Remove(path)
-	return os.Rename(tmp, path)
+	if err := os.Rename(tmp, path); err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	return syncDir(dir)
 }
 
 // WriteJSONAtomic writes JSON to a temp file then renames into place.
@@ -45,4 +66,16 @@ func StripBOM(data []byte) []byte {
 		return data[3:]
 	}
 	return data
+}
+
+func syncDir(dir string) error {
+	if runtime.GOOS == "windows" {
+		return nil
+	}
+	d, err := os.Open(dir)
+	if err != nil {
+		return nil
+	}
+	defer d.Close()
+	return d.Sync()
 }
