@@ -276,6 +276,10 @@ func connectAgents(ctx Context, opts Options, state *State, root string) error {
 		return err
 	}
 	state.SelectedAgents = selected
+	if len(selected) > 0 {
+		state.Client = normalizeClientName(selected[0])
+	}
+	state.Connected = true
 
 	logPath := filepath.Join(root, ".b2b", "agent-connect.log")
 	if err := os.MkdirAll(filepath.Dir(logPath), 0o755); err != nil {
@@ -454,6 +458,22 @@ func manualFallback(home string) Agent {
 
 func toAgentID(name string) string {
 	return strings.ToLower(strings.ReplaceAll(name, " ", "-"))
+}
+
+func normalizeClientName(name string) string {
+	lower := strings.ToLower(name)
+	switch {
+	case strings.Contains(lower, "codex"):
+		return "codex"
+	case strings.Contains(lower, "cursor"):
+		return "cursor"
+	case strings.Contains(lower, "claude"):
+		return "claude"
+	case strings.Contains(lower, "windsurf"):
+		return "windsurf"
+	default:
+		return "generic"
+	}
 }
 
 func findAgentByID(agents []Agent, id string) (Agent, bool) {
@@ -636,8 +656,8 @@ args = ["mcp", "serve"]
 env = {}
 `, escaped)
 
-	reNew := regexp.MustCompile(`(?s)\[mcp_servers\."?gres-b2b"?\].*?(?=\n\[|$)`)
-	reOld := regexp.MustCompile(`(?s)\[mcp\.servers\.gres_b2b\].*?(?=\n\[|$)`)
+	reNew := regexp.MustCompile(`(?s)\[mcp_servers\."?gres-b2b"?\][^\[]*`)
+	reOld := regexp.MustCompile(`(?s)\[mcp\.servers\.gres_b2b\][^\[]*`)
 
 	if reNew.MatchString(content) {
 		content = reNew.ReplaceAllString(content, strings.TrimSpace(section))

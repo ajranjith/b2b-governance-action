@@ -148,12 +148,37 @@
         <div id="verifyResult"></div>
       </section>
 
-      
-      <!-- Step 6-7: Scan & Fix Loop -->
-      <section id="step-scanfix" class="step">
-        <h2><span class="section-badge" id="scanfixSectionBadge">S6</span> Scan & Fix Loop</h2>
-        <p>Run scan, generate fixes, and rescan until green.</p>
+      <!-- Step 6: Project Mode -->
+      <section id="step-mode" class="step">
+        <h2><span class="section-badge">S6</span> Project Mode</h2>
+        <p>Choose how GRES should treat your codebase.</p>
+        <div class="mode-card">
+          <label class="mode-option">
+            <input type="radio" name="projectMode" value="greenfield" />
+            <div class="mode-body">
+              <div class="mode-title">Greenfield (Builder)</div>
+              <div class="mode-desc">Initialize structure only, no scan.</div>
+            </div>
+          </label>
+          <label class="mode-option">
+            <input type="radio" name="projectMode" value="brownfield" />
+            <div class="mode-body">
+              <div class="mode-title">Brownfield (Transformer)</div>
+              <div class="mode-desc">Scan existing code, generate report, enable repair loop.</div>
+            </div>
+          </label>
+        </div>
+        <div id="modeStatus" class="note"></div>
+        <div class="step-actions">
+          <button class="btn btn-secondary" onclick="wizard.back()">Back</button>
+          <button class="btn btn-primary" id="btnModeNext" onclick="wizard.confirmMode()" disabled>Next</button>
+        </div>
+      </section>
 
+      <!-- Step 7: Target Selection -->
+      <section id="step-target" class="step">
+        <h2><span class="section-badge">S7</span> Select Project</h2>
+        <p>Choose a local folder or GitHub repo to scan.</p>
         <div class="card">
           <h3>Target</h3>
           <div class="field-row">
@@ -172,22 +197,24 @@
             <label>Subdir</label>
             <input id="repoSubdir" type="text" placeholder="" />
           </div>
-          <div class="field-row">
-            <label>Mode</label>
-            <select id="projectMode">
-              <option value="brownfield">Brownfield</option>
-              <option value="greenfield">Greenfield</option>
-            </select>
-          </div>
           <div class="step-actions">
             <button class="btn btn-secondary" onclick="wizard.setTarget()">Set Target</button>
-            <button class="btn btn-secondary" onclick="wizard.classifyProject()">Classify</button>
             <button class="btn btn-secondary" onclick="wizard.selfCheckSetup()">Self-check</button>
           </div>
           <div id="targetStatus" class="note">
             <span id="setupCheckBadge" class="section-badge success" style="display: none; margin-right: 6px;">SAVED</span>
           </div>
         </div>
+        <div class="step-actions">
+          <button class="btn btn-secondary" onclick="wizard.back()">Back</button>
+          <button class="btn btn-primary" id="btnTargetNext" onclick="wizard.confirmTarget()" disabled>Next</button>
+        </div>
+      </section>
+
+      <!-- Step 8: Scan & Fix Loop -->
+      <section id="step-scanfix" class="step">
+        <h2><span class="section-badge" id="scanfixSectionBadge">S8</span> Scan & Fix Loop</h2>
+        <p>Run scan, generate fixes, and rescan until green.</p>
 
         <div class="card">
           <h3>Report Status</h3>

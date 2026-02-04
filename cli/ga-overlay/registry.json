@@ -1,0 +1,27 @@
+{
+  "version": "1.0.0",
+  "modules": [
+    { "name": "kernel", "root": "packages/kernel" },
+    { "name": "bff", "root": "bff" },
+    { "name": "ui", "root": "ui" }
+  ],
+  "ids": {
+    "API": {
+      "API-A-00-01": true,
+      "API-A-00-03": true,
+      "API-P-00-01": true,
+      "API-P-00-02": true,
+      "API-P-00-03": true
+    },
+    "SVC": {
+      "SVC-K-01-01": true,
+      "SVC-B-01-01": true,
+      "SVC-U-01-01": true,
+      "SVC-A-00-03": true,
+      "SVC-P-00-01": true,
+      "SVC-P-00-02": true,
+      "SVC-P-00-03": true
+    },
+    "DB": { "DB-A-00-01": true }
+  }
+}

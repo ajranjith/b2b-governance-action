@@ -226,6 +226,45 @@ body {
   backdrop-filter: blur(12px);
 }
 
+.mode-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.mode-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.mode-option:hover {
+  border-color: var(--accent-blue);
+  background: rgba(0, 210, 255, 0.05);
+}
+
+.mode-option input[type="radio"] {
+  accent-color: var(--accent-blue);
+}
+
+.mode-title {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.mode-desc {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
 .checklist {
   background: var(--panel-bg);
   border: 1px solid var(--panel-border);

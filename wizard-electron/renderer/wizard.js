@@ -20,7 +20,7 @@
 
 const wizard = {
   currentStep: "preflight",
-  steps: ["preflight", "welcome", "detect", "install", "zombie", "verify", "scanfix", "success"],
+  steps: ["preflight", "welcome", "detect", "install", "zombie", "verify", "mode", "target", "scanfix", "success"],
   selectedAgents: [],
   detectedAgents: [],
   sectionResults: new Map(),
@@ -30,6 +30,8 @@ const wizard = {
     installDir: "",
     scanTarget: "",
     mode: "brownfield",
+    client: "",
+    connected: false,
   },
 
   // ========================================================================
@@ -38,6 +40,7 @@ const wizard = {
   async init() {
     this.showStep("preflight");
     this.updateVersion();
+    this.bindModeEvents();
 
     try {
       // Initialize wizard state machine
@@ -52,10 +55,13 @@ const wizard = {
         return;
       }
 
-      // Preflight passed - show welcome
+      // Preflight passed - resume if possible, otherwise show welcome
       await this.sleep(500);
-      this.showStep("welcome");
-      await this.loadRecentTarget();
+      const resumed = await this.resumeFromSetupState();
+      if (!resumed) {
+        this.showStep("welcome");
+        await this.loadRecentTarget();
+      }
 
     } catch (err) {
       this.showPreflightError({
@@ -101,9 +107,87 @@ const wizard = {
     }
   },
 
+  async getHomeSetupPath() {
+    const home = await window.gres.util.getHomeDir();
+    if (!home) return "";
+    return home + "\\.b2b\\setup.json";
+  },
+
+  normalizeClientName(name) {
+    if (!name) return "generic";
+    const lower = name.toLowerCase();
+    if (lower.includes("codex")) return "codex";
+    if (lower.includes("cursor")) return "cursor";
+    if (lower.includes("claude")) return "claude";
+    if (lower.includes("windsurf")) return "windsurf";
+    return "generic";
+  },
+
+  async writeSetupState(step, extra = {}) {
+    const setupPath = await this.getHomeSetupPath();
+    if (!setupPath) return;
+    const payload = {
+      step,
+      mode: this.data.mode || "",
+      target: this.data.target || {},
+      client: this.data.client || "",
+      connected: !!this.data.connected,
+      updatedAtUtc: new Date().toISOString(),
+      ...extra,
+    };
+    await window.gres.util.writeJSON(setupPath, payload);
+  },
+
+  async resumeFromSetupState() {
+    try {
+      const setupPath = await this.getHomeSetupPath();
+      if (!setupPath) return false;
+      const res = await window.gres.cli.readJSON(setupPath);
+      if (!res.success || !res.data) return false;
+      const step = res.data.step;
+
+      if (res.data.mode) {
+        this.data.mode = res.data.mode;
+      }
+      if (res.data.target) {
+        this.data.target = res.data.target;
+        if (res.data.target.workspaceRoot) {
+          this.data.scanTarget = res.data.target.workspaceRoot;
+        } else if (res.data.target.path) {
+          this.data.scanTarget = res.data.target.path;
+        }
+      }
+
+      if (step === "mode_select") {
+        this.showStep("mode");
+        this.syncModeUI();
+        return true;
+      }
+      if (step === "target_select") {
+        this.showStep("target");
+        await this.loadRecentTarget();
+        this.updateTargetNext();
+        return true;
+      }
+      if (step === "scan_run") {
+        this.showStep("scanfix");
+        await this.loadRecentTarget();
+        return true;
+      }
+    } catch (_) {
+      return false;
+    }
+    return false;
+  },
+
   
   async runScan() {
     const target = this.data.scanTarget || "";
+    if (!target) {
+      this.showStep("target");
+      this.updateTargetStatus("Select a target before running scan.");
+      return;
+    }
     const args = ["scan"];
     if (target) {
       args.push("--target", target);
@@ -114,6 +198,11 @@ const wizard = {
 
   async runFixLoop() {
     const target = this.data.scanTarget || "";
+    if (!target) {
+      this.showStep("target");
+      this.updateTargetStatus("Select a target before running fix loop.");
+      return;
+    }
     const args = ["fix-loop", "--max-fix-attempts", "3"];
     if (target) {
       args.push("--target", target);
@@ -124,6 +213,11 @@ const wizard = {
 
   async runRescan() {
     const target = this.data.scanTarget || "";
+    if (!target) {
+      this.showStep("target");
+      this.updateTargetStatus("Select a target before rescan.");
+      return;
+    }
     const args = ["scan"];
     if (target) {
       args.push("--target", target);
@@ -134,7 +228,11 @@ const wizard = {
 
   async openHUD() {
     const target = this.data.scanTarget || "";
-    if (!target) return;
+    if (!target) {
+      this.showStep("target");
+      this.updateTargetStatus("Select a target before opening HUD.");
+      return;
+    }
     const hudPath = target + "\\.b2b\\report.html";
     window.gres.util.openPath(hudPath);
   },
@@ -167,16 +265,22 @@ const wizard = {
     }
   },
 
+  updateTargetStatus(message) {
+    const statusEl = document.getElementById("targetStatus");
+    if (statusEl && message) statusEl.textContent = message;
+  },
+
 
   async setTarget() {
     const targetPath = document.getElementById("targetPath").value.trim();
     const repoUrl = document.getElementById("repoUrl").value.trim();
-    const ref = document.getElementById("repoRef").value.trim();
+    let ref = document.getElementById("repoRef").value.trim();
     const subdir = document.getElementById("repoSubdir").value.trim();
     const statusEl = document.getElementById("targetStatus");
 
     let args = ["target"];
     if (repoUrl) {
+      if (!ref) ref = "main";
       args.push("--repo", repoUrl);
       if (ref) args.push("--ref", ref);
       if (subdir) args.push("--subdir", subdir);
@@ -207,22 +311,24 @@ const wizard = {
     statusEl.textContent = this.data.scanTarget ? `Target set: ${this.data.scanTarget}` : "Target set.";
     statusEl.classList.add("text-success");
     if (this.data.scanTarget) {
-      await this.writeSetupToRepo(this.data.scanTarget, {
+      const targetInfo = {
         type: repoUrl ? "git" : "local",
         path: targetPath || "",
         repoUrl: repoUrl || "",
         ref: ref || "",
         subdir: subdir || "",
         workspaceRoot: this.data.scanTarget,
-      });
+      };
+      this.data.target = targetInfo;
+      await this.writeSetupToRepo(this.data.scanTarget, targetInfo);
+      await this.writeSetupState("scan_run", { target: targetInfo });
       statusEl.textContent += " (saved)";
     }
+    this.updateTargetNext();
   },
 
   async classifyProject() {
-    const modeEl = document.getElementById("projectMode");
-    const mode = modeEl ? modeEl.value : "brownfield";
-    this.data.mode = mode;
+    const mode = this.data.mode || "brownfield";
     const statusEl = document.getElementById("targetStatus");
     if (!this.data.scanTarget) {
       statusEl.textContent = "Set a target before classify.";
@@ -245,6 +351,7 @@ const wizard = {
       subdir: "",
       workspaceRoot: this.data.scanTarget,
     });
+    await this.writeSetupState("target_select", { mode });
   },
 
   async refreshReport() {
@@ -304,11 +411,12 @@ const wizard = {
       const setupRes = await window.gres.cli.readJSON(setupPath);
       if (setupRes.success && setupRes.data && setupRes.data.target) {
         const t = setupRes.data.target;
+        this.data.target = t;
         if (t.path) document.getElementById("targetPath").value = t.path;
         if (t.repoUrl) document.getElementById("repoUrl").value = t.repoUrl;
         if (t.ref) document.getElementById("repoRef").value = t.ref;
         if (t.subdir) document.getElementById("repoSubdir").value = t.subdir;
-        if (setupRes.data.mode) document.getElementById("projectMode").value = setupRes.data.mode;
+        if (setupRes.data.mode) this.data.mode = setupRes.data.mode;
         if (t.workspaceRoot) this.data.scanTarget = t.workspaceRoot;
       }
 
@@ -325,6 +433,8 @@ const wizard = {
         const statusEl = document.getElementById("targetStatus");
         if (statusEl) statusEl.textContent = `Target set: ${this.data.scanTarget}`;
       }
+      this.syncModeUI();
+      this.updateTargetNext();
     } catch (_) {
       // ignore
     }
@@ -335,10 +445,11 @@ const wizard = {
     const payload = {
       version: "1.0",
       status: "IN_PROGRESS",
-      currentStep: "S1",
-      stepsCompleted: ["S1"],
+      step: "scan_run",
       target: targetInfo,
       mode: this.data.mode || "brownfield",
+      client: this.data.client || "",
+      connected: !!this.data.connected,
       updatedAtUtc: new Date().toISOString(),
       resumeAvailable: true,
     };
@@ -347,6 +458,52 @@ const wizard = {
       const statusEl = document.getElementById("targetStatus");
       if (statusEl) statusEl.textContent = res?.error || "Failed to persist setup.json";
     }
+  },
+
+  syncModeUI() {
+    const mode = this.data.mode || "";
+    document.querySelectorAll('input[name="projectMode"]').forEach((input) => {
+      input.checked = input.value === mode;
+    });
+    const btn = document.getElementById("btnModeNext");
+    if (btn) btn.disabled = !mode;
+  },
+
+  bindModeEvents() {
+    document.querySelectorAll('input[name="projectMode"]').forEach((input) => {
+      input.addEventListener("change", () => {
+        this.data.mode = input.value;
+        const btn = document.getElementById("btnModeNext");
+        if (btn) btn.disabled = false;
+      });
+    });
+  },
+
+  updateTargetNext() {
+    const btn = document.getElementById("btnTargetNext");
+    if (btn) btn.disabled = !this.data.scanTarget;
+  },
+
+  confirmMode() {
+    const selected = document.querySelector('input[name="projectMode"]:checked');
+    if (!selected) {
+      const statusEl = document.getElementById("modeStatus");
+      if (statusEl) statusEl.textContent = "Select a mode to continue.";
+      return;
+    }
+    this.data.mode = selected.value;
+    const statusEl = document.getElementById("modeStatus");
+    if (statusEl) statusEl.textContent = `Mode selected: ${this.data.mode}`;
+    this.writeSetupState("target_select", { mode: this.data.mode });
+    this.showStep("target");
+    this.updateTargetNext();
+  },
+
+  async confirmTarget() {
+    await this.setTarget();
+    if (!this.data.scanTarget) return;
+    await this.classifyProject();
+    this.showStep("scanfix");
   },
 
 // ========================================================================
@@ -412,6 +569,7 @@ back() {
       // Get context to access detected agents
       const ctx = await window.gres.wizard.getContext();
       this.detectedAgents = ctx.agents || [];
+      await this.writeSetupState("agent_detect");
 
       if (this.detectedAgents.length === 0) {
         agentList.innerHTML = `
@@ -502,6 +660,8 @@ back() {
 
     // Store selected agent in context
     await window.gres.wizard.setContext("selectedAgent", this.selectedAgents[0]);
+    this.data.client = this.normalizeClientName(this.selectedAgents[0]?.name);
+    this.data.connected = false;
 
     this.showStep("install");
     this.runInstallation();
@@ -612,6 +772,12 @@ back() {
 
       setStepStatus("config", "success", `${successCount} agent(s)`);
       setProgress(100, "Installation complete!", null);
+
+      this.data.connected = true;
+      await this.writeSetupState("mode_select", {
+        client: this.data.client,
+        connected: true,
+      });
 
       await this.sleep(500);
       await this.checkForRunningAgents();
@@ -862,7 +1028,8 @@ back() {
         </div>
       `;
       await this.sleep(800);
-      this.showStep("scanfix");
+      this.showStep("mode");
+      this.syncModeUI();
     } else {
       resultEl.innerHTML = `
         <div class="note text-error" style="margin-top: 20px;">

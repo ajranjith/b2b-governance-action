@@ -33,6 +33,7 @@ Single ZIP with all supported binaries and documentation.
 2. (Optional) Add `%LOCALAPPDATA%\\Programs\\gres-b2b\\bin\\windows-amd64` to PATH
 3. Run `gres-b2b.exe doctor` (optional) or the unified setup flow: `gres-b2b.exe setup`
    - Non-interactive: `gres-b2b.exe setup --non-interactive --target <path> --mode brownfield --client cursor --action verify`
+   - Greenfield/Brownfield options appear in the `gres-b2b setup` wizard
    - MCP snippets and details: [docs/INSTALL.md](docs/INSTALL.md)
 
 ### Option 2 - CLI Setup Guide (Manual)
@@ -360,6 +361,9 @@ After installation, the `gres-b2b` CLI provides these commands:
 # Show version
 gres-b2b --version
 
+# Launch interactive setup (agent → mode → target → scan/verify)
+gres-b2b setup
+
 # Start MCP server (used by AI agents)
 gres-b2b mcp serve
 
@@ -369,6 +373,10 @@ gres-b2b mcp selftest
 # Check prerequisites
 gres-b2b doctor
 ```
+
+Notes:
+- `scan`, `verify`, `watch`, `shadow`, `fix`, and `fix-loop` require an explicit target (`--target` or `--repo`).
+- From MCP inside Codex, use the `setup_status` tool to see the current setup step and next action.
 
 The CLI implements the Model Context Protocol (MCP) over stdio, enabling AI agents to interact with governance tools through a standardized JSON-RPC 2.0 interface.
 

@@ -358,6 +358,11 @@ ipcMain.handle("util:getInstallPath", async () => {
   };
 });
 
+ipcMain.handle("util:getHomeDir", async () => {
+  const os = require("os");
+  return os.homedir();
+});
+
 // Create desktop shortcut
 ipcMain.handle("util:createShortcut", async (_, opts) => {
   const { name, target, args = [] } = opts;

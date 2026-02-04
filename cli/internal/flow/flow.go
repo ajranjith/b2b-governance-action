@@ -23,11 +23,11 @@ const (
 )
 
 var stepOrder = []StepID{
-	StepSelectTarget,
 	StepDetectAgents,
 	StepConnectAgents,
 	StepValidateAgents,
 	StepClassify,
+	StepSelectTarget,
 	StepScan,
 	StepFixLoop,
 	StepFinalVerify,
@@ -56,9 +56,12 @@ type State struct {
 	Version         string   `json:"version"`
 	Status          string   `json:"status"`
 	CurrentStep     StepID   `json:"currentStep"`
+	Step            string   `json:"step,omitempty"`
 	StepsCompleted  []StepID `json:"stepsCompleted"`
 	Target          Target   `json:"target"`
 	Mode            string   `json:"mode,omitempty"`
+	Client          string   `json:"client,omitempty"`
+	Connected       bool     `json:"connected,omitempty"`
 	SelectedAgents  []string `json:"selectedAgents,omitempty"`
 	DetectedAgents  []Agent  `json:"detectedAgents,omitempty"`
 	Action          Action   `json:"action,omitempty"`
@@ -139,6 +142,12 @@ func RunStep(ctx Context, step StepID, opts Options, runner Runner) (State, erro
 	state.LastError = ""
 	state.LastErrorStep = ""
 
+	if state.Step == "" && step == StepDetectAgents {
+		state.Step = "agent_detect"
+		state.UpdatedAtUtc = now().UTC().Format(time.RFC3339)
+		_ = SaveState(root, state)
+	}
+
 	var err error
 
 	switch step {
@@ -169,6 +178,7 @@ func RunStep(ctx Context, step StepID, opts Options, runner Runner) (State, erro
 	} else {
 		state.CurrentStep = step
 		state.StepsCompleted = appendUnique(state.StepsCompleted, step)
+		state.Step = stepName(step)
 	}
 
 	state.UpdatedAtUtc = now().UTC().Format(time.RFC3339)
@@ -229,6 +239,29 @@ func appendUnique(list []StepID, step StepID) []StepID {
 		}
 	}
 	return append(list, step)
+}
+
+func stepName(step StepID) string {
+	switch step {
+	case StepDetectAgents:
+		return "agent_connect"
+	case StepConnectAgents:
+		return "mode_select"
+	case StepValidateAgents:
+		return "mode_select"
+	case StepClassify:
+		return "target_select"
+	case StepSelectTarget:
+		return "scan_run"
+	case StepScan:
+		return "scan_run"
+	case StepFixLoop:
+		return "fix_loop"
+	case StepFinalVerify:
+		return "final_verify"
+	default:
+		return ""
+	}
 }
 
 func updateEvidence(state *State) error {

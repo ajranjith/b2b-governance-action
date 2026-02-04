@@ -553,8 +553,52 @@ func handleRequest(req *JSONRPCRequest) {
 					},
 				},
 				{
+					"name":        "scan_dirty",
+					"description": "Run diagnostic scan on dirty repo (no remediation)",
+					"inputSchema": map[string]interface{}{
+						"type": "object",
+						"properties": map[string]interface{}{
+							"targetPath": map[string]interface{}{
+								"type":        "string",
+								"description": "Path to dirty repo (defaults to C:\\Users\\ajran\\.gemini\\B2B-Updated)",
+							},
+						},
+					},
+				},
+				{
+					"name":        "ga_apply_and_rescan",
+					"description": "Create clean workspace, apply GA overlay, then scan destination",
+					"inputSchema": map[string]interface{}{
+						"type": "object",
+						"properties": map[string]interface{}{
+							"sourcePath": map[string]interface{}{
+								"type":        "string",
+								"description": "Source repo path or URL (defaults to local B2B-Updated or remote)",
+							},
+							"destinationPath": map[string]interface{}{
+								"type":        "string",
+								"description": "Destination base path for GA-applied workspace",
+							},
+						},
+					},
+				},
+				{
 					"name":        "rescan",
-					"description": "Run scan again and return updated status",
+					"description": "Run scan against an explicit targetPath (no remediation)",
+					"inputSchema": map[string]interface{}{
+						"type": "object",
+						"properties": map[string]interface{}{
+							"targetPath": map[string]interface{}{
+								"type":        "string",
+								"description": "Path to scan",
+							},
+						},
+						"required": []string{"targetPath"},
+					},
+				},
+				{
+					"name":        "setup_status",
+					"description": "Return current setup state and next action",
 					"inputSchema": map[string]interface{}{
 						"type":       "object",
 						"properties": map[string]interface{}{},
@@ -592,8 +636,24 @@ func handleRequest(req *JSONRPCRequest) {
 			mode, _ := params.Arguments["mode"].(string)
 			result := mcpApplyFixes(mode)
 			sendResult(req.ID, result)
+		case "scan_dirty":
+			targetPath, _ := params.Arguments["targetPath"].(string)
+			result := mcpScanDirty(targetPath)
+			sendResult(req.ID, result)
+		case "ga_apply_and_rescan":
+			sourcePath, _ := params.Arguments["sourcePath"].(string)
+			destinationPath, _ := params.Arguments["destinationPath"].(string)
+			result := mcpGAApplyAndRescan(gaApplyOptions{
+				SourcePath:      sourcePath,
+				DestinationPath: destinationPath,
+			})
+			sendResult(req.ID, result)
 		case "rescan":
-			result := mcpRescan()
+			targetPath, _ := params.Arguments["targetPath"].(string)
+			result := mcpRescan(targetPath)
+			sendResult(req.ID, result)
+		case "setup_status":
+			result := mcpSetupStatus()
 			sendResult(req.ID, result)
 		default:
 			sendError(req.ID, -32601, "Method not found", fmt.Sprintf("Unknown tool: %s", params.Name))
@@ -727,17 +787,73 @@ func mcpApplyFixes(mode string) map[string]interface{} {
 	}
 }
 
-func mcpRescan() map[string]interface{} {
-	withStdoutSilenced(func() { runScan() })
-	path := filepath.Join(config.Paths.WorkspaceRoot, ".b2b", "report.json")
+func mcpSetupStatus() map[string]interface{} {
+	path := filepath.Join(config.Paths.WorkspaceRoot, ".b2b", "setup.json")
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return map[string]interface{}{
-			"content": []map[string]interface{}{{"type": "text", "text": fmt.Sprintf("ERROR: %v", err)}},
+			"content": []map[string]interface{}{{
+				"type": "text",
+				"text": "setup.json not found. Next action: run `gres-b2b setup`.",
+			}},
+			"step":       "not_started",
+			"nextAction": "run setup",
 		}
 	}
+	var state map[string]interface{}
+	if err := json.Unmarshal(support.StripBOM(data), &state); err != nil {
+		return map[string]interface{}{
+			"content": []map[string]interface{}{{
+				"type": "text",
+				"text": fmt.Sprintf("setup.json unreadable: %v", err),
+			}},
+			"step":       "error",
+			"nextAction": "repair setup.json",
+		}
+	}
+
+	step, _ := state["step"].(string)
+	mode, _ := state["mode"].(string)
+	connected, _ := state["connected"].(bool)
+	target := ""
+	if t, ok := state["target"].(map[string]interface{}); ok {
+		if v, ok := t["workspaceRoot"].(string); ok && v != "" {
+			target = v
+		} else if v, ok := t["path"].(string); ok && v != "" {
+			target = v
+		}
+	}
+
+	nextAction := "run setup"
+	missing := []string{}
+
+	if !connected {
+		missing = append(missing, "agent connection")
+		nextAction = "connect agent"
+	}
+	if mode == "" {
+		missing = append(missing, "mode")
+		nextAction = "select mode"
+	}
+	if target == "" {
+		missing = append(missing, "target")
+		nextAction = "select target"
+	}
+	if len(missing) == 0 {
+		nextAction = "run scan"
+	}
+
 	return map[string]interface{}{
-		"content": []map[string]interface{}{{"type": "text", "text": string(data)}},
+		"step":       step,
+		"mode":       mode,
+		"target":     target,
+		"connected":  connected,
+		"missing":    missing,
+		"nextAction": nextAction,
+		"content": []map[string]interface{}{{
+			"type": "text",
+			"text": fmt.Sprintf("setup step=%s, next=%s", step, nextAction),
+		}},
 	}
 }
 

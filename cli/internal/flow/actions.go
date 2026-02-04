@@ -21,7 +21,7 @@ func runAction(ctx Context, opts Options, state *State, runner Runner) error {
 		targetRoot = state.Target.Path
 	}
 	if targetRoot == "" {
-		targetRoot = rootFor(ctx, opts)
+		return fmt.Errorf("target is required before running %s", action.Name)
 	}
 
 	return runner.Run(action, targetRoot)

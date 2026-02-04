@@ -244,7 +244,12 @@ func runActionCommand(actionName string, args []string) {
 	opts.Action = action
 	opts.ForceAction = true
 
-	if opts.TargetPath != "" || opts.RepoURL != "" {
+	if requiresTarget(actionName) {
+		if err := ensureTargetForAction(&opts); err != nil {
+			fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
+			fmt.Fprintln(os.Stderr, "Hint: run `gres-b2b setup` or provide --target/--repo.")
+			os.Exit(1)
+		}
 		if _, err := flow.RunStep(flowContext(), flow.StepSelectTarget, opts, flowRunner{}); err != nil {
 			fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
 			os.Exit(1)
@@ -346,14 +351,14 @@ func parseSetupArgs(args []string) (flow.Options, bool, error) {
 
 func fillSetupInteractive(opts *flow.Options) error {
 	reader := bufio.NewReader(os.Stdin)
-	if opts.TargetPath == "" && opts.RepoURL == "" {
-		fmt.Print("Target (local path or GitHub URL): ")
+	if !opts.AllClients && len(opts.Clients) == 0 {
+		fmt.Print("Agent client (id or name, or 'all'): ")
 		line, _ := reader.ReadString('\n')
 		line = strings.TrimSpace(line)
-		if strings.HasPrefix(line, "http://") || strings.HasPrefix(line, "https://") || strings.Contains(line, "://") {
-			opts.RepoURL = line
-		} else {
-			opts.TargetPath = line
+		if strings.EqualFold(line, "all") {
+			opts.AllClients = true
+		} else if line != "" {
+			opts.Clients = []string{line}
 		}
 	}
 
@@ -361,6 +366,12 @@ func fillSetupInteractive(opts *flow.Options) error {
 		fmt.Print("Mode (greenfield|brownfield): ")
 		line, _ := reader.ReadString('\n')
 		opts.Mode = strings.TrimSpace(line)
+	}
+
+	if opts.TargetPath == "" && opts.RepoURL == "" {
+		if err := promptTarget(reader, opts); err != nil {
+			return err
+		}
 	}
 
 	if opts.Action.Name == "" {
@@ -403,18 +414,74 @@ func fillSetupInteractive(opts *flow.Options) error {
 		}
 	}
 
-	if !opts.AllClients && len(opts.Clients) == 0 {
-		fmt.Print("Agent client (id or name, or 'all'): ")
-		line, _ := reader.ReadString('\n')
-		line = strings.TrimSpace(line)
-		if strings.EqualFold(line, "all") {
-			opts.AllClients = true
-		} else if line != "" {
-			opts.Clients = []string{line}
-		}
+	return nil
+}
+
+func requiresTarget(action string) bool {
+	switch action {
+	case "scan", "verify", "watch", "shadow", "fix", "fix-loop":
+		return true
+	default:
+		return false
+	}
+}
+
+func ensureTargetForAction(opts *flow.Options) error {
+	if opts.TargetPath != "" || opts.RepoURL != "" {
+		return nil
 	}
 
+	root := flowContext().Root
+	if root == "" {
+		root = config.Paths.WorkspaceRoot
+	}
+	state, _ := flow.LoadState(root)
+	if state.Target.WorkspaceRoot != "" || state.Target.Path != "" {
+		opts.TargetPath = state.Target.WorkspaceRoot
+		if opts.TargetPath == "" {
+			opts.TargetPath = state.Target.Path
+		}
+		return nil
+	}
+
+	if !isInteractive() {
+		return fmt.Errorf("target is required")
+	}
+
+	reader := bufio.NewReader(os.Stdin)
+	return promptTarget(reader, opts)
+}
+
+func promptTarget(reader *bufio.Reader, opts *flow.Options) error {
+	fmt.Print("Target (local path or GitHub URL): ")
+	line, _ := reader.ReadString('\n')
+	line = strings.TrimSpace(line)
+	if line == "" {
+		return fmt.Errorf("target is required")
+	}
+	if strings.HasPrefix(line, "http://") || strings.HasPrefix(line, "https://") || strings.Contains(line, "://") {
+		opts.RepoURL = line
+		fmt.Print("Ref (default main): ")
+		ref, _ := reader.ReadString('\n')
+		opts.Ref = strings.TrimSpace(ref)
+		if opts.Ref == "" {
+			opts.Ref = "main"
+		}
+		fmt.Print("Subdir (optional): ")
+		subdir, _ := reader.ReadString('\n')
+		opts.Subdir = strings.TrimSpace(subdir)
+	} else {
+		opts.TargetPath = line
+	}
 	return nil
+}
+
+func isInteractive() bool {
+	stat, err := os.Stdin.Stat()
+	if err != nil {
+		return false
+	}
+	return (stat.Mode() & os.ModeCharDevice) != 0
 }
 
 func parseAgentArgs(args []string) flow.Options {

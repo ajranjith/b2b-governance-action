@@ -27,7 +27,8 @@ func classifyProject(ctx Context, opts Options, state *State, root string) error
 		workspace = state.Target.Path
 	}
 	if workspace == "" {
-		workspace = rootFor(ctx, opts)
+		// Target not selected yet; mode will be applied after target selection.
+		return nil
 	}
 
 	if state.Mode == "greenfield" {
@@ -91,13 +92,17 @@ func runScanStep(ctx Context, opts Options, state *State, runner Runner) error {
 	if state.Action.Name == "" {
 		return fmt.Errorf("action is required")
 	}
+	root := resolveTarget(ctx, opts, state)
+	if root == "" {
+		return fmt.Errorf("target is required before running %s", state.Action.Name)
+	}
 	if runner == nil {
 		return nil
 	}
 	if err := writeChecklist(state, opts); err != nil {
 		return err
 	}
-	return runner.Run(state.Action, resolveTarget(ctx, opts, state))
+	return runner.Run(state.Action, root)
 }
 
 func runFixLoop(ctx Context, opts Options, state *State, runner Runner) error {
@@ -112,6 +117,9 @@ func runFixLoop(ctx Context, opts Options, state *State, runner Runner) error {
 		attempts = 3
 	}
 	root := resolveTarget(ctx, opts, state)
+	if root == "" {
+		return fmt.Errorf("target is required before running fix-loop")
+	}
 	for i := 0; i < attempts; i++ {
 		_ = runner.Run(Action{Name: "fix", FixDryRun: true}, root)
 		_ = runner.Run(Action{Name: "fix", FixDryRun: false}, root)
@@ -129,7 +137,11 @@ func runFinalVerify(ctx Context, opts Options, state *State, runner Runner) erro
 		return nil
 	}
 	if state.Action.Name == "verify" || state.Action.Name == "fix" || state.Action.Name == "fix-loop" {
-		if err := runner.Run(Action{Name: "verify"}, resolveTarget(ctx, opts, state)); err != nil {
+		root := resolveTarget(ctx, opts, state)
+		if root == "" {
+			return fmt.Errorf("target is required before running verify")
+		}
+		if err := runner.Run(Action{Name: "verify"}, root); err != nil {
 			return err
 		}
 	}
@@ -161,13 +173,13 @@ func resolveTarget(ctx Context, opts Options, state *State) string {
 	if state.Target.Path != "" {
 		return state.Target.Path
 	}
-	return rootFor(ctx, opts)
+	return ""
 }
 
 func writeChecklist(state *State, opts Options) error {
 	root := resolveTarget(Context{}, opts, state)
 	if root == "" {
-		return nil
+		return fmt.Errorf("target is required before writing checklist")
 	}
 	checklist := []string{
 		"Boundary rules (contracts-only / no-leak)",

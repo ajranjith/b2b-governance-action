@@ -27,6 +27,8 @@ bin\windows-amd64\gres-b2b.exe doctor
 ## A.1) Unified Setup Flow (Wizard + CLI)
 
 Both the Wizard UI and the CLI run the same steps in the same order.
+Greenfield/Brownfield selection appears inside `gres-b2b setup`.
+All scans require an explicit target (local path or GitHub URL).
 
 Interactive (recommended):
 ```
@@ -221,6 +223,8 @@ Expected output (short):
 {"jsonrpc":"2.0","id":3,"result":{"content":[{"text":"Governance check passed for action: health_check"}]}}
 ```
 
+Tip: When using MCP inside Codex, call the `setup_status` tool to see the current setup step and next action.
+
 ## E) Command Test Matrix (Executed)
 
 All commands below were executed against the repo fixtures.
@@ -333,6 +337,15 @@ Outputs observed in `.b2b/`:
 - `results.json`
 
 ## G) Troubleshooting
+
+### Greenfield/Brownfield options missing
+- The mode step appears only in the `gres-b2b setup` wizard flow.
+- If the wizard stalls on “Detecting AI agent,” your CLI may be outdated and missing `detect-agents`.
+- Fix: download the latest CLI or re-run setup with the bundled wizard binary, then relaunch the wizard.
+
+### Scan prompts for target
+- `scan`, `verify`, `watch`, `shadow`, and `fix` now require an explicit target.
+- Use `--target <path>` or `--repo <url> --ref <branch> --subdir <path>`, or run `gres-b2b setup`.
 
 ### Tool not found / PATH issues
 - Use full path: `C:\\...\\gres-b2b.exe`

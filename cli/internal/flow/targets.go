@@ -40,6 +40,9 @@ func selectTarget(ctx Context, opts Options, state *State) error {
 			Path:          abs,
 			WorkspaceRoot: abs,
 		}
+		if state.Mode == "greenfield" {
+			return scaffoldGreenfield(abs)
+		}
 		return nil
 	}
 
@@ -84,7 +87,13 @@ func selectTarget(ctx Context, opts Options, state *State) error {
 		WorkspaceID: workspaceID,
 	}
 
-	return writeWorkspaces(root, entry)
+	if err := writeWorkspaces(root, entry); err != nil {
+		return err
+	}
+	if state.Mode == "greenfield" {
+		return scaffoldGreenfield(workspaceRoot)
+	}
+	return nil
 }
 
 func writeWorkspaces(root string, entry WorkspaceEntry) error {
