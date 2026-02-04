@@ -30,6 +30,31 @@ Both the Wizard UI and the CLI run the same steps in the same order.
 Greenfield/Brownfield selection appears inside `gres-b2b setup`.
 All scans require an explicit target (local path or GitHub URL).
 
+### A.2) Codex MCP Clean Scan (Recommended)
+
+When running scans from Codex, use the MCP tool `ga_apply_and_rescan` to avoid scanning a dirty workspace. This creates a clean copy, applies the GA overlay, and scans the clean destination.
+
+JSON-RPC example:
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "ga_apply_and_rescan",
+    "arguments": {
+      "sourcePath": "C:\\\\Users\\\\YOUR_USER\\\\.gemini\\\\B2B-Updated",
+      "destinationPath": "C:\\\\Users\\\\YOUR_USER\\\\.gemini\\\\updated-GA-Applied"
+    }
+  }
+}
+```
+
+Notes:
+- Auth endpoints are normalized under `/api/bff/v1/{admin|dealer}/auth/*`.
+- Admin DB ping uses policy enforcement.
+- The scan runs against the clean workspace only.
+
 Interactive (recommended):
 ```
 bin\windows-amd64\gres-b2b.exe setup

@@ -377,8 +377,33 @@ gres-b2b doctor
 Notes:
 - `scan`, `verify`, `watch`, `shadow`, `fix`, and `fix-loop` require an explicit target (`--target` or `--repo`).
 - From MCP inside Codex, use the `setup_status` tool to see the current setup step and next action.
+- For Codex MCP clean scans, call the MCP tool `ga_apply_and_rescan` to build a clean workspace and run the scan (no dirty repo scanning).
 
 The CLI implements the Model Context Protocol (MCP) over stdio, enabling AI agents to interact with governance tools through a standardized JSON-RPC 2.0 interface.
+
+### Codex MCP Clean Scan (Recommended)
+
+Use the MCP server to create a clean workspace, apply the GA overlay, and scan the clean copy:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "ga_apply_and_rescan",
+    "arguments": {
+      "sourcePath": "C:\\\\Users\\\\ajran\\\\.gemini\\\\B2B-Updated",
+      "destinationPath": "C:\\\\Users\\\\ajran\\\\.gemini\\\\updated-GA-Applied"
+    }
+  }
+}
+```
+
+This ensures:
+- Auth endpoints live under `/api/bff/v1/{admin|dealer}/auth/*` (not `/api/auth/*`).
+- Admin DB ping uses policy enforcement.
+- The scan runs against the clean workspace only.
 
 ---
 
