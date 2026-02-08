@@ -1,0 +1,22 @@
+{
+  "artifacts": {
+    "api.registry.json": "0999d333b26ce4258e9843ae3ee757bff2de32c6214d7cfab8c3fdfc97fe47b7",
+    "registry.json": "edf01a4fcaf836efa0ab75bf53593e13d045df5a1a98c4cc499a1907216a7454",
+    "routes.registry.json": "33bf0dbf058a30af195d3f80ba8e15e2e81a6170098e5f7b70a861143eea8941",
+    "ui/registry.json": "b65785f8f3962d68746873b508db4493d7a3c0590a26d25574fbd808d8679da4"
+  },
+  "counts": {
+    "files": 4
+  },
+  "generated_at": "2026-02-08T21:15:58Z",
+  "result": "PASS",
+  "signature": {
+    "algorithm": "RSASSA-PKCS1-v1_5-SHA256",
+    "public_key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA0ri7y+E4DTtPXz9YfxI3fChG52HlHy7zEID72jtE2vAVjFTttOS+C7TL3Q5aMET+4g4noyUZBWeFkXg/Di4RHtrnWb2BQOQKN2y2mbdJlVurs0mzOS7392k0Bn1ntsz3ldsefy/iz0fz7d1fJu8rcO7eULdUYptDdQmj+bc67K1MAiTr4eka38nNVdJ9176K5ptehFaewmvnQa1qGWd2/CaVwsNJgMRxAhQQ2c1D+7c51qGFZoGr5Iqx9lV343uFE3/8L6qI8mCcCfwE354LFapXnfdJLLF0M5GMkJFPJQjZQmUkIEIQtOnX9PDeAA/JhAKLRWFskSzTSbLP38bz1wIDAQAB",
+    "signature": "b6wTAKBfm1/PJ/6JZtZTSeSYSNsC/RqNSYEMA0e/xgC1UyVVbDlon2XxXBA+Jl3ZQTurBFvovVRO445PXGhzzkd60W435M0z7ofwRANCXH3cJUGcQo9x9OCGO+/XykEJRIL7b7g5u8rf6sBbcMOXr1zEMzJQmbFe7vcKGAvBwbg3eBGO7TDeYm2y7+qV7SbQnaQbtzFZjXfIX1kTg3C3dmmvwaFCqLvFZ7VvbhgW1P8CeVi37dZkvnoZ2ZAzmC/X4w3CQuuVIFk3745JEqBa4SA8imm/rw9l9ATDdT03nwYyxSc+jUy/rWLnut5PWpnnmbiiW2pZm4tGPM5Hm0H2qA=="
+  },
+  "thresholds": {
+    "max_amber": 0,
+    "max_red": 0
+  }
+}
