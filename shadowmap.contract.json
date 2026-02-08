@@ -1,0 +1,5 @@
+{
+  "mappings": {
+    "logicId": {"fragment":"/ui/components/button","behavior":"click","scope":"dealer"}
+  }
+}
