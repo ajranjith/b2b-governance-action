@@ -1,0 +1,4 @@
+{
+  "apis": ["api1","api2"],
+  "svcs": ["svc1","svc2"]
+}
