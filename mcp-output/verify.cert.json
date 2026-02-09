@@ -1,0 +1,5 @@
+{
+  "junit": "verify.junit.xml",
+  "result": "PASS",
+  "sarif": "verify.sarif"
+}
